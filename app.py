@@ -450,7 +450,7 @@ st.markdown("")
 # TABS
 # =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
-    ["🏢 Empresa", "📊 Ratios", "🎯 Valoración", "📚 Benchmarks", "📉 Correlaciones", "📈 Precio"]
+    ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio"]
 )
 
 # ==== TAB EMPRESA ====
