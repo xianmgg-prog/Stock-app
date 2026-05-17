@@ -287,7 +287,6 @@ def compute_valuations(info, currency):
             "Valor": graham,
             "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
-        # Graham ajustado (factor 15)
         graham_adj = math.sqrt(15 * eps_use * bvps)
         methods.append({
             "Método": "Graham Ajustado (15×)",
@@ -297,7 +296,7 @@ def compute_valuations(info, currency):
             "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
 
-    # --- DDM (Dividend Discount Model) ---
+    # --- DDM ---
     if div and div > 0:
         for g_div, r_div, label_div in [
             (0.02, 0.08, "DDM (g 2%, r 8%)"),
@@ -314,7 +313,7 @@ def compute_valuations(info, currency):
                     "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
                 })
 
-    # Añadir precio y upside a cada método
+    # Añadir precio y upside
     for m in methods:
         m["Precio"] = price
         if price and price > 0:
@@ -324,77 +323,6 @@ def compute_valuations(info, currency):
             m["Upside %"] = None
 
     return methods, price
-
-
-# =========================
-# TABLA ESTILIZADA
-# =========================
-def style_valuation_table(df):
-    def color_upside(val):
-        if pd.isna(val):
-            return "color: #9CA3AF"
-        if val >= 30:
-            return "color: #22C55E; font-weight: 700"
-        if val >= 10:
-            return "color: #86EFAC; font-weight: 600"
-        if val >= -10:
-            return "color: #FCD34D"
-        if val >= -30:
-            return "color: #F87171"
-        return "color: #EF4444; font-weight: 700"
-
-    def color_calidad(val):
-        if val == "Alta":
-            return "color: #22C55E; font-weight: 600"
-        if val == "Media":
-            return "color: #FCD34D"
-        return "color: #9CA3AF"
-
-    def color_tipo(val):
-        mapa = {
-            "DCF":      "color: #38BDF8",
-            "Múltiplo": "color: #A78BFA",
-            "Mixto":    "color: #FB923C",
-            "DDM":      "color: #34D399",
-        }
-        return mapa.get(val, "")
-
-    styled = (
-        df.style
-        .applymap(color_upside, subset=["Upside %"])
-        .applymap(color_calidad, subset=["Calidad"])
-        .applymap(color_tipo, subset=["Tipo"])
-        .format({
-            "Valor":    lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-            "Precio":   lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
-            "Upside %": lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A",
-        })
-        .set_properties(**{
-            "background-color": "#111827",
-            "color": "#E5E7EB",
-            "border": "1px solid #1F2937",
-            "font-size": "13px",
-        })
-        .set_table_styles([
-            {"selector": "th", "props": [
-                ("background-color", "#0B1120"),
-                ("color", "#9CA3AF"),
-                ("font-size", "11px"),
-                ("text-transform", "uppercase"),
-                ("letter-spacing", "0.07em"),
-                ("border-bottom", "2px solid #1F2937"),
-                ("padding", "6px 10px"),
-            ]},
-            {"selector": "td", "props": [
-                ("padding", "5px 10px"),
-                ("border-bottom", "1px solid #1F2937"),
-            ]},
-            {"selector": "tr:hover td", "props": [
-                ("background-color", "#1F2937"),
-            ]},
-        ])
-    )
-    return styled
 
 
 # =========================
@@ -635,13 +563,13 @@ with tab_val:
         df_val = pd.DataFrame(methods)
         df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
-        # Columna de interpretación textual (sin estilos CSS)
+        # Interpretación textual del upside
         def rango_upside(u):
             if pd.isna(u):
                 return "N/A"
-            if u >= 30:
+            if u >= 40:
                 return "Muy infravalorado"
-            if u >= 10:
+            if u >= 20:
                 return "Infravalorado"
             if u >= -10:
                 return "En línea"
@@ -650,6 +578,56 @@ with tab_val:
             return "Muy sobrevalorado"
 
         df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
+
+        # Score en estrellas según calidad + upside
+        def score_row(row):
+            u = row["Upside %"]
+            cal = row["Calidad"]
+            if pd.isna(u):
+                base = 2
+            elif u >= 40:
+                base = 5
+            elif u >= 20:
+                base = 4
+            elif u >= 0:
+                base = 3
+            elif u >= -20:
+                base = 2
+            else:
+                base = 1
+
+            if cal == "Alta":
+                base = min(base + 1, 5)
+            elif cal == "Baja":
+                base = max(base - 1, 1)
+
+            return "★" * base + "☆" * (5 - base)
+
+        df_val["Score"] = df_val.apply(score_row, axis=1)
+
+        # Formatear valores numéricos
+        def fmt_val(v):
+            return f"{v:.2f}" if pd.notna(v) else "N/A"
+
+        def fmt_up(u):
+            return f"{u:+.1f}%" if pd.notna(u) else "N/A"
+
+        df_tabla = pd.DataFrame({
+            "Método": df_val["Método"],
+            "Tipo": df_val["Tipo"],
+            "Score": df_val["Score"],
+            "Upside (%)": df_val["Upside %"].apply(fmt_up),
+            "Valor intrínseco": df_val["Valor"].apply(fmt_val),
+            "Precio actual": df_val["Precio"].apply(fmt_val),
+            "Calidad": df_val["Calidad"],
+            "Interpretación": df_val["Interpretación"],
+            "Supuestos": df_val["Supuestos"],
+        })
+
+        # Ordenar por Upside numérico descendente
+        df_tabla = df_tabla.reindex(
+            df_val.sort_values("Upside %", ascending=False).index
+        )
 
         # Leyenda de tipos de método
         col_leg1, col_leg2, col_leg3, col_leg4 = st.columns(4)
@@ -662,15 +640,8 @@ with tab_val:
         with col_leg4:
             st.markdown("🟢 DDM")
 
-        # Tabla “profesional” sin Styler
         st.dataframe(
-            df_val.rename(
-                columns={
-                    "Valor": "Valor intrínseco",
-                    "Precio": "Precio actual",
-                    "Upside %": "Upside (%)",
-                }
-            ),
+            df_tabla,
             use_container_width=True,
             height=600,
         )
@@ -727,7 +698,7 @@ with tab_val:
         )
         st.plotly_chart(fig_val, use_container_width=True)
 
-        # Gráfico de barras horizontal
+        # Gráfico barras horizontal
         fig_bar = px.bar(
             df_val.sort_values("Valor"),
             x="Valor",
@@ -754,7 +725,6 @@ with tab_val:
             height=max(400, len(df_val) * 22),
         )
         st.plotly_chart(fig_bar, use_container_width=True)
-# ==== TAB BENCHMARKS ====  # <--- a partir de aquí sigue tu código actual
 
 # ==== TAB BENCHMARKS ====
 with tab_bench:
