@@ -635,22 +635,45 @@ with tab_val:
         df_val = pd.DataFrame(methods)
         df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
-        # Leyenda de colores
+        # Columna de interpretación textual (sin estilos CSS)
+        def rango_upside(u):
+            if pd.isna(u):
+                return "N/A"
+            if u >= 30:
+                return "Muy infravalorado"
+            if u >= 10:
+                return "Infravalorado"
+            if u >= -10:
+                return "En línea"
+            if u >= -30:
+                return "Sobrevalorado"
+            return "Muy sobrevalorado"
+
+        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
+
+        # Leyenda de tipos de método
         col_leg1, col_leg2, col_leg3, col_leg4 = st.columns(4)
         with col_leg1:
-            st.markdown(f'<span style="color:#38BDF8">■</span> DCF', unsafe_allow_html=True)
+            st.markdown("🔵 DCF")
         with col_leg2:
-            st.markdown(f'<span style="color:#A78BFA">■</span> Múltiplo', unsafe_allow_html=True)
+            st.markdown("🟣 Múltiplo")
         with col_leg3:
-            st.markdown(f'<span style="color:#FB923C">■</span> Mixto', unsafe_allow_html=True)
+            st.markdown("🟠 Mixto")
         with col_leg4:
-            st.markdown(f'<span style="color:#34D399">■</span> DDM', unsafe_allow_html=True)
+            st.markdown("🟢 DDM")
 
-        st.markdown("")
-
-        # Tabla con estilos
-        styled = style_valuation_table(df_val)
-        st.dataframe(styled, use_container_width=True, height=600)
+        # Tabla “profesional” sin Styler
+        st.dataframe(
+            df_val.rename(
+                columns={
+                    "Valor": "Valor intrínseco",
+                    "Precio": "Precio actual",
+                    "Upside %": "Upside (%)",
+                }
+            ),
+            use_container_width=True,
+            height=600,
+        )
 
         st.markdown("---")
 
@@ -659,9 +682,10 @@ with tab_val:
         m1, m2, m3, m4 = st.columns(4)
         for col, label, val in [
             (m1, "Métodos calculados", str(len(df_val))),
-            (m2, "Upside mediano",     f"{upsides.median():+.1f}%" if len(upsides) else "N/A"),
-            (m3, "Upside medio",       f"{upsides.mean():+.1f}%" if len(upsides) else "N/A"),
-            (m4, "Rango upside",       f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
+            (m2, "Upside mediano", f"{upsides.median():+.1f}%" if len(upsides) else "N/A"),
+            (m3, "Upside medio", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A"),
+            (m4, "Rango upside",
+             f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
         ]:
             with col:
                 st.markdown(
@@ -672,7 +696,7 @@ with tab_val:
 
         st.markdown("---")
 
-        # Gráfico scatter: todos los métodos, con color por tipo
+        # Gráfico strip de upsides
         fig_val = px.strip(
             df_val,
             x="Upside %",
@@ -681,15 +705,20 @@ with tab_val:
             hover_data=["Método", "Valor", "Supuestos"],
             title="Distribución de upside por tipo de método",
             color_discrete_map={
-                "DCF":      ACCENT_BLUE,
+                "DCF": "#38BDF8",
                 "Múltiplo": "#A78BFA",
-                "Mixto":    "#FB923C",
-                "DDM":      "#34D399",
+                "Mixto": "#FB923C",
+                "DDM": "#34D399",
             },
         )
         fig_val.add_vline(x=0, line_dash="dash", line_color="white", opacity=0.4)
-        fig_val.add_vline(x=30, line_dash="dot", line_color=ACCENT_GREEN, opacity=0.5,
-                          annotation_text="Margen seg. 30%")
+        fig_val.add_vline(
+            x=30,
+            line_dash="dot",
+            line_color="#22C55E",
+            opacity=0.5,
+            annotation_text="Margen seg. 30%",
+        )
         fig_val.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
@@ -698,7 +727,7 @@ with tab_val:
         )
         st.plotly_chart(fig_val, use_container_width=True)
 
-        # Gráfico de barras con valor de cada método
+        # Gráfico de barras horizontal
         fig_bar = px.bar(
             df_val.sort_values("Valor"),
             x="Valor",
@@ -707,16 +736,16 @@ with tab_val:
             orientation="h",
             title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
             color_discrete_map={
-                "DCF":      ACCENT_BLUE,
+                "DCF": "#38BDF8",
                 "Múltiplo": "#A78BFA",
-                "Mixto":    "#FB923C",
-                "DDM":      "#34D399",
+                "Mixto": "#FB923C",
+                "DDM": "#34D399",
             },
         )
         fig_bar.add_vline(
             x=current_price,
             line_dash="dash",
-            line_color=ACCENT_RED,
+            line_color="#EF4444",
             annotation_text=f"Precio: {current_price:.2f}",
         )
         fig_bar.update_layout(
@@ -725,6 +754,7 @@ with tab_val:
             height=max(400, len(df_val) * 22),
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+# ==== TAB BENCHMARKS ====  # <--- a partir de aquí sigue tu código actual
 
 # ==== TAB BENCHMARKS ====
 with tab_bench:
