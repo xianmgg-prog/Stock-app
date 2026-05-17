@@ -626,25 +626,22 @@ def search_companies(query: str):
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_ticker_data(ticker: str):
-    """Load all data for a ticker."""
-    t = yf.Ticker(ticker)
-    info = {}
-    hist_1y = pd.DataFrame()
-    hist_5y = pd.DataFrame()
+def load_ticker_info(ticker: str) -> dict:
+    """Load ticker info dict (serializable)."""
     try:
-        info = t.info
+        return yf.Ticker(ticker).info or {}
     except Exception:
-        pass
+        return {}
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_ticker_history(ticker: str, period: str) -> pd.DataFrame:
+    """Load price history for a given period (serializable)."""
     try:
-        hist_1y = t.history(period="1y")
+        df = yf.Ticker(ticker).history(period=period)
+        return df if df is not None else pd.DataFrame()
     except Exception:
-        pass
-    try:
-        hist_5y = t.history(period="5y")
-    except Exception:
-        pass
-    return t, info, hist_1y, hist_5y
+        return pd.DataFrame()
 
 
 # ─────────────────────────────────────────────
@@ -776,10 +773,10 @@ if not selected_ticker:
 
 if analyze_btn or selected_ticker:
     with st.spinner(f"Fetching data for {selected_ticker}…"):
-        ticker_obj, info, hist_1y, hist_5y = load_ticker_data(selected_ticker)
+        info   = load_ticker_info(selected_ticker)
+        hist_1y = load_ticker_history(selected_ticker, "1y")
 
-    if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
-        # Try with period data
+    if not info or (info.get("regularMarketPrice") is None and info.get("currentPrice") is None):
         if hist_1y.empty:
             st.error(f"⚠  Could not retrieve data for **{selected_ticker}**. "
                      "Please verify the ticker symbol and try again.")
@@ -1230,8 +1227,14 @@ if analyze_btn or selected_ticker:
         else:
             with st.spinner("Loading correlation data…"):
                 try:
-                    raw = yf.download(all_tickers, period=selected_period,
-                                      auto_adjust=True, progress=False)["Close"]
+                    raw_all = yf.download(
+                        all_tickers, period=selected_period,
+                        auto_adjust=True, progress=False
+                    )
+                    if isinstance(raw_all.columns, pd.MultiIndex):
+                        raw = raw_all["Close"]
+                    else:
+                        raw = raw_all  # single-ticker fallback
                     if isinstance(raw, pd.Series):
                         raw = raw.to_frame(name=all_tickers[0])
                     raw = raw.dropna(how="all")
@@ -1327,12 +1330,8 @@ if analyze_btn or selected_ticker:
         section_header("OHLC Price & Volume")
 
         with st.spinner("Loading price history…"):
-            try:
-                hist = yf.download(selected_ticker, period=selected_period,
-                                   auto_adjust=True, progress=False)
-                if hist.empty:
-                    hist = hist_1y
-            except Exception:
+            hist = load_ticker_history(selected_ticker, selected_period)
+            if hist.empty:
                 hist = hist_1y
 
         if hist is not None and not hist.empty:
