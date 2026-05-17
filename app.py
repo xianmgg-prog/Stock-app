@@ -21,13 +21,12 @@ st.set_page_config(
 # =========================
 # COLORES
 # =========================
-PRIMARY_BG = "#050816"
-CARD_BG = "#111827"
 ACCENT_BLUE = "#38BDF8"
 ACCENT_GREEN = "#22C55E"
 ACCENT_RED = "#EF4444"
 TEXT_PRIMARY = "#E5E7EB"
 TEXT_SECONDARY = "#9CA3AF"
+CARD_BG = "#111827"
 BORDER = "#1F2937"
 
 st.markdown(
@@ -67,6 +66,7 @@ st.markdown(
         border-radius: 10px;
         padding: 0.8rem 1rem;
         border: 1px solid {BORDER};
+        margin-bottom: 0.4rem;
     }}
     .metric-label {{
         color: {TEXT_SECONDARY};
@@ -82,13 +82,6 @@ st.markdown(
     .metric-sub {{
         color: {TEXT_SECONDARY};
         font-size: 0.75rem;
-    }}
-    .bench-header {{
-        font-size: 0.8rem;
-        color: {TEXT_SECONDARY};
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        margin-bottom: 0.4rem;
     }}
     .stTabs [data-baseweb="tab"] {{
         font-size: 0.9rem;
@@ -130,14 +123,12 @@ def fmt_large(x):
     sign = -1 if v < 0 else 1
     v = abs(v)
     if v >= 1e12:
-        s = f"{sign*v/1e12:.2f}T"
+        return f"{sign*v/1e12:.2f}T"
     elif v >= 1e9:
-        s = f"{sign*v/1e9:.2f}B"
+        return f"{sign*v/1e9:.2f}B"
     elif v >= 1e6:
-        s = f"{sign*v/1e6:.2f}M"
-    else:
-        s = f"{sign*v:.0f}"
-    return s
+        return f"{sign*v/1e6:.2f}M"
+    return f"{sign*v:.0f}"
 
 
 def search_ticker(query: str):
@@ -179,22 +170,29 @@ def get_benchmark_list(info, main_ticker):
     return peers[:4]
 
 
-def compute_valuations(info):
+# =========================
+# TODOS LOS MÉTODOS DE VALORACIÓN
+# =========================
+def compute_valuations(info, currency):
     methods = []
-    price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
-    shares = safe_float(info.get("sharesOutstanding"))
-    fcf = safe_float(info.get("freeCashflow"))
-    revenue = safe_float(info.get("totalRevenue"))
-    ebitda = safe_float(info.get("ebitda"))
-    bvps = safe_float(info.get("bookValue"))
-    eps = safe_float(info.get("trailingEps"))
-    forward_eps = safe_float(info.get("forwardEps"))
-    total_debt = safe_float(info.get("totalDebt"), 0.0)
-    cash = safe_float(info.get("totalCash"), 0.0)
 
-    if fcf is not None and shares and shares > 0:
-        g_high, g_low, r = 0.10, 0.03, 0.10
-        fcf0 = fcf
+    price   = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
+    shares  = safe_float(info.get("sharesOutstanding"))
+    fcf     = safe_float(info.get("freeCashflow"))
+    revenue = safe_float(info.get("totalRevenue"))
+    ebitda  = safe_float(info.get("ebitda"))
+    ebit    = safe_float(info.get("ebit"))
+    bvps    = safe_float(info.get("bookValue"))
+    eps     = safe_float(info.get("trailingEps"))
+    fwd_eps = safe_float(info.get("forwardEps"))
+    div     = safe_float(info.get("dividendRate"))
+    total_debt = safe_float(info.get("totalDebt"), 0.0)
+    cash    = safe_float(info.get("totalCash"), 0.0)
+    net_income = safe_float(info.get("netIncomeToCommon"))
+
+    def dcf_model(fcf0, g_high, g_low, r, label, calidad):
+        if fcf0 is None or shares is None or shares <= 0:
+            return
         pv = 0.0
         for t in range(1, 6):
             pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
@@ -202,35 +200,209 @@ def compute_valuations(info):
             pv += fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5) / (1 + r) ** t
         terminal = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
         pv_terminal = terminal / (1 + r) ** 10
-        equity_value = pv + pv_terminal + cash - total_debt
-        methods.append({"name": "DCF (FCF)", "value": equity_value / shares, "params": "g 10%→3%, r 10%"})
+        equity = pv + pv_terminal + cash - total_debt
+        methods.append({
+            "Método": label,
+            "Tipo": "DCF",
+            "Calidad": calidad,
+            "Valor": equity / shares,
+            "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
+        })
 
+    # --- DCF variantes ---
+    if fcf is not None:
+        dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Agresivo", "Media")
+        dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base",     "Alta")
+        dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservador", "Alta")
+
+    # DCF con net income como proxy
+    if net_income is not None and shares and shares > 0:
+        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto proxy)", "Media")
+
+    # --- EV / EBITDA múltiplos ---
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
-        ev = ebitda * 12.0
-        methods.append({"name": "EV/EBITDA (12×)", "value": (ev + cash - total_debt) / shares, "params": f"EBITDA={fmt_large(ebitda)}"})
+        for mult, cal in [(8, "Alta"), (10, "Alta"), (12, "Media"), (15, "Media"), (20, "Baja")]:
+            ev = ebitda * mult
+            methods.append({
+                "Método": f"EV/EBITDA {mult}×",
+                "Tipo": "Múltiplo",
+                "Calidad": cal,
+                "Valor": (ev + cash - total_debt) / shares,
+                "Supuestos": f"EBITDA={fmt_large(ebitda)}, mult={mult}×",
+            })
 
+    # --- EV / EBIT múltiplos ---
+    if ebit is not None and ebit > 0 and shares and shares > 0:
+        for mult, cal in [(10, "Alta"), (14, "Media"), (18, "Baja")]:
+            ev = ebit * mult
+            methods.append({
+                "Método": f"EV/EBIT {mult}×",
+                "Tipo": "Múltiplo",
+                "Calidad": cal,
+                "Valor": (ev + cash - total_debt) / shares,
+                "Supuestos": f"EBIT={fmt_large(ebit)}, mult={mult}×",
+            })
+
+    # --- P/E objetivo ---
+    eps_use = eps if (eps and eps > 0) else fwd_eps
+    if eps_use and eps_use > 0:
+        for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
+            methods.append({
+                "Método": f"P/E {mult}×",
+                "Tipo": "Múltiplo",
+                "Calidad": cal,
+                "Valor": eps_use * mult,
+                "Supuestos": f"EPS={eps_use:.2f}, mult={mult}×",
+            })
+
+    # --- P/S múltiplos ---
     if revenue is not None and shares and shares > 0:
-        methods.append({"name": "P/Ventas (5×)", "value": revenue * 5.0 / shares, "params": f"Ventas={fmt_large(revenue)}"})
+        for mult, cal in [(1, "Alta"), (2, "Alta"), (4, "Media"), (6, "Media"), (8, "Baja")]:
+            methods.append({
+                "Método": f"P/Ventas {mult}×",
+                "Tipo": "Múltiplo",
+                "Calidad": cal,
+                "Valor": revenue * mult / shares,
+                "Supuestos": f"Ventas={fmt_large(revenue)}, mult={mult}×",
+            })
 
-    if bvps is not None and bvps > 0:
-        methods.append({"name": "P/Valor Libros (2×)", "value": bvps * 2.0, "params": f"BVPS={bvps:.2f}"})
+    # --- P/B múltiplos ---
+    if bvps and bvps > 0:
+        for mult, cal in [(1, "Alta"), (1.5, "Alta"), (2, "Media"), (3, "Media"), (4, "Baja")]:
+            methods.append({
+                "Método": f"P/Valor Libros {mult}×",
+                "Tipo": "Múltiplo",
+                "Calidad": cal,
+                "Valor": bvps * mult,
+                "Supuestos": f"BVPS={bvps:.2f}, mult={mult}×",
+            })
 
-    eps_use = eps if (eps and eps > 0) else forward_eps
+    # --- Graham Number ---
     if eps_use and eps_use > 0 and bvps and bvps > 0:
-        methods.append({"name": "Graham Number", "value": math.sqrt(22.5 * eps_use * bvps), "params": f"EPS={eps_use:.2f} BVPS={bvps:.2f}"})
+        graham = math.sqrt(22.5 * eps_use * bvps)
+        methods.append({
+            "Método": "Graham Number",
+            "Tipo": "Mixto",
+            "Calidad": "Alta",
+            "Valor": graham,
+            "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
+        })
+        # Graham ajustado (factor 15)
+        graham_adj = math.sqrt(15 * eps_use * bvps)
+        methods.append({
+            "Método": "Graham Ajustado (15×)",
+            "Tipo": "Mixto",
+            "Calidad": "Media",
+            "Valor": graham_adj,
+            "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
+        })
+
+    # --- DDM (Dividend Discount Model) ---
+    if div and div > 0:
+        for g_div, r_div, label_div in [
+            (0.02, 0.08, "DDM (g 2%, r 8%)"),
+            (0.03, 0.09, "DDM (g 3%, r 9%)"),
+            (0.05, 0.10, "DDM (g 5%, r 10%)"),
+        ]:
+            if r_div > g_div:
+                val_ddm = div * (1 + g_div) / (r_div - g_div)
+                methods.append({
+                    "Método": label_div,
+                    "Tipo": "DDM",
+                    "Calidad": "Media",
+                    "Valor": val_ddm,
+                    "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
+                })
+
+    # Añadir precio y upside a cada método
+    for m in methods:
+        m["Precio"] = price
+        if price and price > 0:
+            upside = (m["Valor"] - price) / price * 100
+            m["Upside %"] = round(upside, 1)
+        else:
+            m["Upside %"] = None
 
     return methods, price
 
 
 # =========================
-# HERO
+# TABLA ESTILIZADA
+# =========================
+def style_valuation_table(df):
+    def color_upside(val):
+        if pd.isna(val):
+            return "color: #9CA3AF"
+        if val >= 30:
+            return "color: #22C55E; font-weight: 700"
+        if val >= 10:
+            return "color: #86EFAC; font-weight: 600"
+        if val >= -10:
+            return "color: #FCD34D"
+        if val >= -30:
+            return "color: #F87171"
+        return "color: #EF4444; font-weight: 700"
+
+    def color_calidad(val):
+        if val == "Alta":
+            return "color: #22C55E; font-weight: 600"
+        if val == "Media":
+            return "color: #FCD34D"
+        return "color: #9CA3AF"
+
+    def color_tipo(val):
+        mapa = {
+            "DCF":      "color: #38BDF8",
+            "Múltiplo": "color: #A78BFA",
+            "Mixto":    "color: #FB923C",
+            "DDM":      "color: #34D399",
+        }
+        return mapa.get(val, "")
+
+    styled = (
+        df.style
+        .applymap(color_upside, subset=["Upside %"])
+        .applymap(color_calidad, subset=["Calidad"])
+        .applymap(color_tipo, subset=["Tipo"])
+        .format({
+            "Valor":    lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+            "Precio":   lambda x: f"{x:.2f}" if pd.notna(x) else "N/A",
+            "Upside %": lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A",
+        })
+        .set_properties(**{
+            "background-color": "#111827",
+            "color": "#E5E7EB",
+            "border": "1px solid #1F2937",
+            "font-size": "13px",
+        })
+        .set_table_styles([
+            {"selector": "th", "props": [
+                ("background-color", "#0B1120"),
+                ("color", "#9CA3AF"),
+                ("font-size", "11px"),
+                ("text-transform", "uppercase"),
+                ("letter-spacing", "0.07em"),
+                ("border-bottom", "2px solid #1F2937"),
+                ("padding", "6px 10px"),
+            ]},
+            {"selector": "td", "props": [
+                ("padding", "5px 10px"),
+                ("border-bottom", "1px solid #1F2937"),
+            ]},
+            {"selector": "tr:hover td", "props": [
+                ("background-color", "#1F2937"),
+            ]},
+        ])
+    )
+    return styled
+
+
+# =========================
+# HERO + BÚSQUEDA
 # =========================
 st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
 
-# =========================
-# BÚSQUEDA + OPCIONES
-# =========================
 col_search, col_btn = st.columns([4, 1])
 with col_search:
     query = st.text_input(
@@ -241,7 +413,6 @@ with col_search:
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-# Sugerencias
 if query:
     suggestions = search_ticker(query)
     if suggestions:
@@ -252,22 +423,15 @@ if query:
 else:
     ticker_sym = ""
 
-# Opciones avanzadas en expander
 with st.expander("⚙️ Opciones de análisis", expanded=False):
     op1, op2 = st.columns([1, 2])
     with op1:
-        period = st.selectbox(
-            "Período histórico",
-            ["1y", "3y", "5y", "10y"],
-            index=1,
-        )
+        period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
     with op2:
         corr_tickers_input = st.text_input(
             "Tickers para correlación (separados por comas)",
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
-
-corr_tickers_text = corr_tickers_input if "corr_tickers_input" in dir() else "AAPL\nMSFT\nGOOGL\nAMZN\nMETA"
 
 if not analyze_btn or not ticker_sym:
     st.markdown("---")
@@ -293,10 +457,10 @@ if not analyze_btn or not ticker_sym:
 with st.spinner(f"Cargando datos de {ticker_sym}..."):
     try:
         stock = yf.Ticker(ticker_sym)
-        info = stock.info
-        hist = stock.history(period=period)
+        info  = stock.info
+        hist  = stock.history(period=period)
     except Exception as e:
-        st.error(f"Error al obtener datos de Yahoo Finance: {e}")
+        st.error(f"Error al obtener datos: {e}")
         st.stop()
 
 price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
@@ -305,48 +469,50 @@ if price is None:
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or ticker_sym
-sector = info.get("sector", "N/A")
+sector   = info.get("sector",   "N/A")
 industry = info.get("industry", "N/A")
 currency = info.get("currency", "USD")
 
-# CABECERA DE EMPRESA
 prev_close = safe_float(info.get("previousClose"))
 if price and prev_close:
-    chg = price - prev_close
+    chg     = price - prev_close
     chg_pct = chg / prev_close * 100
-    color_chg = ACCENT_GREEN if chg >= 0 else ACCENT_RED
-    delta_str = f'<span style="color:{color_chg}">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
+    color_chg  = ACCENT_GREEN if chg >= 0 else ACCENT_RED
+    delta_str  = f'<span style="color:{color_chg}">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
 else:
     delta_str = ""
 
 st.markdown(
     f"""
-    <div style="margin: 1.2rem 0 0.5rem 0;">
-        <span style="font-size:1.6rem;font-weight:700;">{company_name}</span>
-        <span style="color:{TEXT_SECONDARY};font-size:1rem;margin-left:0.8rem;">{ticker_sym} · {sector} · {industry} · {currency}</span>
+    <div style="margin: 1.2rem 0 0.3rem 0;">
+        <span style="font-size:1.7rem;font-weight:700;">{company_name}</span>
+        <span style="color:{TEXT_SECONDARY};font-size:0.95rem;margin-left:0.8rem;">
+            {ticker_sym} · {sector} · {industry} · {currency}
+        </span>
     </div>
-    <div style="font-size:2rem;font-weight:700;margin-bottom:0.2rem;">
+    <div style="font-size:2rem;font-weight:700;margin-bottom:0.5rem;">
         {price:.2f} {currency} {delta_str}
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-mc = fmt_large(info.get("marketCap"))
+mc     = fmt_large(info.get("marketCap"))
 high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
-low52 = fmt_num(info.get("fiftyTwoWeekLow"))
+low52  = fmt_num(info.get("fiftyTwoWeekLow"))
 beta_v = fmt_num(info.get("beta"))
 
 k1, k2, k3, k4 = st.columns(4)
 for col, label, val in [
-    (k1, "Market Cap", mc),
-    (k2, "52W Máx", f"{high52} {currency}"),
-    (k3, "52W Mín", f"{low52} {currency}"),
-    (k4, "Beta", beta_v),
+    (k1, "Market Cap",  mc),
+    (k2, "52W Máx",     f"{high52} {currency}"),
+    (k3, "52W Mín",     f"{low52} {currency}"),
+    (k4, "Beta",        beta_v),
 ]:
     with col:
         st.markdown(
-            f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>',
+            f'<div class="metric-card"><div class="metric-label">{label}</div>'
+            f'<div class="metric-value">{val}</div></div>',
             unsafe_allow_html=True,
         )
 
@@ -373,32 +539,33 @@ with tab_emp:
         st.subheader("Datos corporativos")
         employees = info.get("fullTimeEmployees")
         for label, val in [
-            ("País", info.get("country", "N/A")),
-            ("Ciudad", info.get("city", "N/A")),
-            ("Exchange", info.get("exchange", "N/A")),
+            ("País",      info.get("country",  "N/A")),
+            ("Ciudad",    info.get("city",      "N/A")),
+            ("Exchange",  info.get("exchange",  "N/A")),
             ("Empleados", f"{employees:,}" if employees else "N/A"),
-            ("Sector", sector),
+            ("Sector",    sector),
             ("Industria", industry),
         ]:
             st.markdown(
-                f'<div class="metric-card" style="margin-bottom:0.4rem;"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>',
+                f'<div class="metric-card"><div class="metric-label">{label}</div>'
+                f'<div class="metric-value">{val}</div></div>',
                 unsafe_allow_html=True,
             )
 
 # ==== TAB RATIOS ====
 with tab_rat:
-    pe = safe_float(info.get("trailingPE"))
-    fwd_pe = safe_float(info.get("forwardPE"))
-    pb = safe_float(info.get("priceToBook"))
-    ps = safe_float(info.get("priceToSalesTrailing12Months"))
-    roe = safe_float(info.get("returnOnEquity"))
-    roa = safe_float(info.get("returnOnAssets"))
-    profit_margin = safe_float(info.get("profitMargins"))
+    pe           = safe_float(info.get("trailingPE"))
+    fwd_pe       = safe_float(info.get("forwardPE"))
+    pb           = safe_float(info.get("priceToBook"))
+    ps           = safe_float(info.get("priceToSalesTrailing12Months"))
+    roe          = safe_float(info.get("returnOnEquity"))
+    roa          = safe_float(info.get("returnOnAssets"))
+    profit_margin= safe_float(info.get("profitMargins"))
     gross_margin = safe_float(info.get("grossMargins"))
-    debt_equity = safe_float(info.get("debtToEquity"))
-    current_ratio = safe_float(info.get("currentRatio"))
-    quick_ratio = safe_float(info.get("quickRatio"))
-    dividend_yield = safe_float(info.get("dividendYield"))
+    debt_equity  = safe_float(info.get("debtToEquity"))
+    current_ratio= safe_float(info.get("currentRatio"))
+    quick_ratio  = safe_float(info.get("quickRatio"))
+    dividend_yield=safe_float(info.get("dividendYield"))
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -443,10 +610,8 @@ with tab_rat:
 
     fig_radar = go.Figure(
         data=go.Scatterpolar(
-            r=radar_values,
-            theta=radar_labels,
-            fill="toself",
-            line_color=ACCENT_BLUE,
+            r=radar_values, theta=radar_labels,
+            fill="toself", line_color=ACCENT_BLUE,
             fillcolor="rgba(56,189,248,0.3)",
         )
     )
@@ -461,79 +626,105 @@ with tab_rat:
 
 # ==== TAB VALORACIÓN ====
 with tab_val:
-    st.subheader("Valoración intrínseca por métodos")
-    methods, current_price = compute_valuations(info)
+    st.subheader("Valoración intrínseca — todos los métodos")
+    methods, current_price = compute_valuations(info, currency)
 
     if not methods:
-        st.warning("No se pudo calcular ninguna valoración por falta de datos.")
+        st.warning("No se pudieron calcular valoraciones por falta de datos.")
     else:
-        registros = []
-        for m in methods:
-            name = m["name"]
-            val = m["value"]
-            params = m["params"]
+        df_val = pd.DataFrame(methods)
+        df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
-            if current_price:
-                upside = (val - current_price) / current_price * 100
-            else:
-                upside = None
+        # Leyenda de colores
+        col_leg1, col_leg2, col_leg3, col_leg4 = st.columns(4)
+        with col_leg1:
+            st.markdown(f'<span style="color:#38BDF8">■</span> DCF', unsafe_allow_html=True)
+        with col_leg2:
+            st.markdown(f'<span style="color:#A78BFA">■</span> Múltiplo', unsafe_allow_html=True)
+        with col_leg3:
+            st.markdown(f'<span style="color:#FB923C">■</span> Mixto', unsafe_allow_html=True)
+        with col_leg4:
+            st.markdown(f'<span style="color:#34D399">■</span> DDM', unsafe_allow_html=True)
 
-            if upside is not None and (upside < -80 or upside > 200):
-                continue
+        st.markdown("")
 
-            if upside is None:
-                margen_txt = "N/A"
-            elif upside >= 30:
-                margen_txt = f"{upside:.1f}% ▲ alto"
-            elif upside >= 10:
-                margen_txt = f"{upside:.1f}% ↑ bueno"
-            elif upside >= -10:
-                margen_txt = f"{upside:.1f}% → neutral"
-            else:
-                margen_txt = f"{upside:.1f}% ▼ malo"
+        # Tabla con estilos
+        styled = style_valuation_table(df_val)
+        st.dataframe(styled, use_container_width=True, height=600)
 
-            registros.append(
-                {
-                    "Método": name,
-                    "Parámetros": params,
-                    "Valor intrínseco": f"{currency} {val:.2f}",
-                    "Precio mercado": f"{currency} {current_price:.2f}",
-                    "Margen seg.": margen_txt,
-                }
-            )
+        st.markdown("---")
 
-        if not registros:
-            st.info("Las valoraciones calculadas son extremas; se han ocultado por seguridad.")
-        else:
-            df_val_tabla = pd.DataFrame(registros)
-            st.dataframe(df_val_tabla, use_container_width=True)
+        # Métricas resumen
+        upsides = df_val["Upside %"].dropna()
+        m1, m2, m3, m4 = st.columns(4)
+        for col, label, val in [
+            (m1, "Métodos calculados", str(len(df_val))),
+            (m2, "Upside mediano",     f"{upsides.median():+.1f}%" if len(upsides) else "N/A"),
+            (m3, "Upside medio",       f"{upsides.mean():+.1f}%" if len(upsides) else "N/A"),
+            (m4, "Rango upside",       f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
+        ]:
+            with col:
+                st.markdown(
+                    f'<div class="metric-card"><div class="metric-label">{label}</div>'
+                    f'<div class="metric-value">{val}</div></div>',
+                    unsafe_allow_html=True,
+                )
 
-            df_val = pd.DataFrame(
-                {
-                    "Método": [r["Método"] for r in registros],
-                    "Valor": [float(r["Valor intrínseco"].split()[1]) for r in registros],
-                }
-            )
-            fig_bar = px.bar(
-                df_val,
-                x="Método",
-                y="Valor",
-                title="Valor intrínseco por método vs precio actual",
-                color="Valor",
-                color_continuous_scale="Blues",
-            )
-            fig_bar.add_hline(
-                y=current_price,
-                line_dash="dash",
-                line_color=ACCENT_RED,
-                annotation_text=f"Precio actual: {current_price:.2f}",
-            )
-            fig_bar.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=400,
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown("---")
+
+        # Gráfico scatter: todos los métodos, con color por tipo
+        fig_val = px.strip(
+            df_val,
+            x="Upside %",
+            y="Tipo",
+            color="Tipo",
+            hover_data=["Método", "Valor", "Supuestos"],
+            title="Distribución de upside por tipo de método",
+            color_discrete_map={
+                "DCF":      ACCENT_BLUE,
+                "Múltiplo": "#A78BFA",
+                "Mixto":    "#FB923C",
+                "DDM":      "#34D399",
+            },
+        )
+        fig_val.add_vline(x=0, line_dash="dash", line_color="white", opacity=0.4)
+        fig_val.add_vline(x=30, line_dash="dot", line_color=ACCENT_GREEN, opacity=0.5,
+                          annotation_text="Margen seg. 30%")
+        fig_val.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=350,
+            xaxis_title="Upside vs precio actual (%)",
+        )
+        st.plotly_chart(fig_val, use_container_width=True)
+
+        # Gráfico de barras con valor de cada método
+        fig_bar = px.bar(
+            df_val.sort_values("Valor"),
+            x="Valor",
+            y="Método",
+            color="Tipo",
+            orientation="h",
+            title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
+            color_discrete_map={
+                "DCF":      ACCENT_BLUE,
+                "Múltiplo": "#A78BFA",
+                "Mixto":    "#FB923C",
+                "DDM":      "#34D399",
+            },
+        )
+        fig_bar.add_vline(
+            x=current_price,
+            line_dash="dash",
+            line_color=ACCENT_RED,
+            annotation_text=f"Precio: {current_price:.2f}",
+        )
+        fig_bar.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=max(400, len(df_val) * 22),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==== TAB BENCHMARKS ====
 with tab_bench:
@@ -547,22 +738,22 @@ with tab_bench:
             data = {}
             for t in tickers_all:
                 try:
-                    tk = yf.Ticker(t)
+                    tk  = yf.Ticker(t)
                     inf = tk.info
                     data[t] = {
-                        "name": inf.get("shortName", t),
-                        "pe": safe_float(inf.get("trailingPE")),
-                        "pb": safe_float(inf.get("priceToBook")),
-                        "roe": safe_float(inf.get("returnOnEquity")),
-                        "margin": safe_float(inf.get("profitMargins")),
-                        "price": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        "name":      inf.get("shortName", t),
+                        "pe":        safe_float(inf.get("trailingPE")),
+                        "pb":        safe_float(inf.get("priceToBook")),
+                        "roe":       safe_float(inf.get("returnOnEquity")),
+                        "margin":    safe_float(inf.get("profitMargins")),
+                        "price":     safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
                         "marketCap": safe_float(inf.get("marketCap")),
                     }
                 except Exception:
                     continue
 
         if len(data) <= 1:
-            st.warning("No se pudieron cargar datos suficientes de benchmarks.")
+            st.warning("No se pudieron cargar datos de benchmarks.")
         else:
             df_bench = pd.DataFrame.from_dict(data, orient="index")
             df_bench.index.name = "Ticker"
@@ -588,19 +779,23 @@ with tab_bench:
             )
             fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
             fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
-            fig_comp.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
+            fig_comp.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                height=400,
+            )
             st.plotly_chart(fig_comp, use_container_width=True)
 
 # ==== TAB CORRELACIONES ====
 with tab_corr:
     st.subheader("Correlación de rentabilidades")
-    corr_tickers = [t.strip().upper() for t in corr_tickers_text.replace(",", "\n").split("\n") if t.strip()]
+    corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
     if ticker_sym not in corr_tickers:
         corr_tickers.insert(0, ticker_sym)
 
     with st.spinner("Descargando precios históricos..."):
         try:
-            prices = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)["Close"]
+            prices  = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)["Close"]
             if isinstance(prices, pd.Series):
                 prices = prices.to_frame(name=corr_tickers[0])
             returns = prices.pct_change().dropna()
@@ -612,13 +807,17 @@ with tab_corr:
         corr = returns.corr()
         st.markdown("#### Matriz de correlación")
         fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
-        fig_corr.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
+        fig_corr.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400
+        )
         st.plotly_chart(fig_corr, use_container_width=True)
 
         st.markdown("#### Retornos acumulados")
         cum = (1 + returns).cumprod()
         fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"})
-        fig_cum.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
+        fig_cum.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400
+        )
         st.plotly_chart(fig_cum, use_container_width=True)
 
 # ==== TAB PRECIO ====
