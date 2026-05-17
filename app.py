@@ -53,35 +53,37 @@ COLORS = {
     "gradient_2":    "#00D4FF",
 }
 
-PLOTLY_TEMPLATE = dict(
-    layout=dict(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="'Courier New', 'IBM Plex Mono', monospace", color=COLORS["text_secondary"], size=11),
-        title=dict(font=dict(color=COLORS["text_primary"], size=14, family="'Courier New', monospace")),
-        xaxis=dict(
-            gridcolor=COLORS["border"], gridwidth=0.5,
-            linecolor=COLORS["border_accent"], tickcolor=COLORS["text_muted"],
-            tickfont=dict(color=COLORS["text_muted"], size=10),
-            zerolinecolor=COLORS["border"],
-        ),
-        yaxis=dict(
-            gridcolor=COLORS["border"], gridwidth=0.5,
-            linecolor=COLORS["border_accent"], tickcolor=COLORS["text_muted"],
-            tickfont=dict(color=COLORS["text_muted"], size=10),
-            zerolinecolor=COLORS["border"],
-        ),
-        legend=dict(
-            bgcolor="rgba(20,27,46,0.8)", bordercolor=COLORS["border_accent"],
-            borderwidth=1, font=dict(color=COLORS["text_secondary"], size=10),
-        ),
-        hoverlabel=dict(
-            bgcolor=COLORS["bg_card"], bordercolor=COLORS["accent_blue"],
-            font=dict(color=COLORS["text_primary"], size=11),
-        ),
-        margin=dict(l=40, r=20, t=40, b=40),
-    )
+# Base style dicts — referenced individually to avoid duplicate-key conflicts
+_AXIS_STYLE = dict(
+    gridcolor=COLORS["border"], gridwidth=0.5,
+    linecolor=COLORS["border_accent"], tickcolor=COLORS["text_muted"],
+    tickfont=dict(color=COLORS["text_muted"], size=10),
+    zerolinecolor=COLORS["border"],
 )
+_LEGEND_STYLE = dict(
+    bgcolor="rgba(20,27,46,0.8)", bordercolor=COLORS["border_accent"],
+    borderwidth=1, font=dict(color=COLORS["text_secondary"], size=10),
+)
+_BASE_LAYOUT = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="'Courier New', 'IBM Plex Mono', monospace", color=COLORS["text_secondary"], size=11),
+    title=dict(font=dict(color=COLORS["text_primary"], size=14, family="'Courier New', monospace")),
+    xaxis=_AXIS_STYLE,
+    yaxis=_AXIS_STYLE,
+    legend=_LEGEND_STYLE,
+    hoverlabel=dict(
+        bgcolor=COLORS["bg_card"], bordercolor=COLORS["accent_blue"],
+        font=dict(color=COLORS["text_primary"], size=11),
+    ),
+    margin=dict(l=40, r=20, t=40, b=40),
+)
+
+def base_layout(**overrides):
+    """Return a merged layout dict with base styles plus caller overrides."""
+    layout = dict(_BASE_LAYOUT)
+    layout.update(overrides)
+    return layout
 
 CSS = f"""
 <style>
@@ -1016,8 +1018,7 @@ if analyze_btn or selected_ticker:
             line=dict(color=COLORS["accent_blue"], width=2),
             name=selected_ticker,
         ))
-        radar_fig.update_layout(
-            **PLOTLY_TEMPLATE["layout"],
+        radar_fig.update_layout(base_layout(
             polar=dict(
                 bgcolor="rgba(0,0,0,0)",
                 angularaxis=dict(
@@ -1035,7 +1036,7 @@ if analyze_btn or selected_ticker:
             showlegend=False,
             height=340,
             margin=dict(l=60, r=60, t=30, b=30),
-        )
+        ))
         st.plotly_chart(radar_fig, use_container_width=True)
 
     # ══════════════════════════════════════════
@@ -1202,8 +1203,7 @@ if analyze_btn or selected_ticker:
                 outlinecolor=COLORS["border"],
             ),
         ))
-        heat_fig.update_layout(
-            **PLOTLY_TEMPLATE["layout"],
+        heat_fig.update_layout(base_layout(
             xaxis_title="Growth Rate",
             yaxis_title="Discount Rate",
             height=260,
@@ -1212,7 +1212,7 @@ if analyze_btn or selected_ticker:
                      text="◆", showarrow=False,
                      font=dict(size=20, color="white"))
             ] if f"{growth_rate*100:.0f}%" in [f"{g*100:.0f}%" for g in growth_rates] else []
-        )
+        ))
         st.plotly_chart(heat_fig, use_container_width=True)
 
     # ══════════════════════════════════════════
@@ -1268,14 +1268,12 @@ if analyze_btn or selected_ticker:
                         outlinecolor=COLORS["border"],
                     ),
                 ))
-                corr_fig.update_layout(
-                    **PLOTLY_TEMPLATE["layout"],
+                corr_fig.update_layout(base_layout(
                     height=max(280, 60 * len(all_tickers)),
-                    xaxis=dict(**PLOTLY_TEMPLATE["layout"]["xaxis"],
-                               tickangle=-30, tickfont=dict(size=11, color=COLORS["text_secondary"])),
-                    yaxis=dict(**PLOTLY_TEMPLATE["layout"]["yaxis"],
+                    xaxis=dict(**_AXIS_STYLE, tickangle=-30,
                                tickfont=dict(size=11, color=COLORS["text_secondary"])),
-                )
+                    yaxis=dict(**_AXIS_STYLE, tickfont=dict(size=11, color=COLORS["text_secondary"])),
+                ))
                 st.plotly_chart(corr_fig, use_container_width=True)
 
                 # Cumulative returns
@@ -1296,12 +1294,11 @@ if analyze_btn or selected_ticker:
                     ))
 
                 cum_fig.add_hline(y=0, line_dash="dot", line_color=COLORS["border_accent"], line_width=1)
-                cum_fig.update_layout(
-                    **PLOTLY_TEMPLATE["layout"],
+                cum_fig.update_layout(base_layout(
                     height=380,
                     yaxis_title="Cumulative Return (%)",
                     hovermode="x unified",
-                )
+                ))
                 st.plotly_chart(cum_fig, use_container_width=True)
 
                 # Sharpe ratios
@@ -1389,12 +1386,11 @@ if analyze_btn or selected_ticker:
             ), row=2, col=1)
 
             # Layout
-            fig.update_layout(
-                **PLOTLY_TEMPLATE["layout"],
+            fig.update_layout(base_layout(
                 height=560,
                 xaxis_rangeslider_visible=False,
                 xaxis2=dict(
-                    **PLOTLY_TEMPLATE["layout"]["xaxis"],
+                    **_AXIS_STYLE,
                     title="",
                     rangeselector=dict(
                         bgcolor=COLORS["bg_card"],
@@ -1412,14 +1408,11 @@ if analyze_btn or selected_ticker:
                                   family="IBM Plex Mono"),
                     ),
                 ),
-                yaxis=dict(**PLOTLY_TEMPLATE["layout"]["yaxis"], title="Price"),
-                yaxis2=dict(**PLOTLY_TEMPLATE["layout"]["yaxis"], title="Volume"),
-                legend=dict(
-                    **PLOTLY_TEMPLATE["layout"]["legend"],
-                    orientation="h", y=1.02, x=0,
-                ),
+                yaxis=dict(**_AXIS_STYLE, title="Price"),
+                yaxis2=dict(**_AXIS_STYLE, title="Volume"),
+                legend=dict(**_LEGEND_STYLE, orientation="h", y=1.02, x=0),
                 hovermode="x unified",
-            )
+            ))
 
             st.plotly_chart(fig, use_container_width=True)
 
