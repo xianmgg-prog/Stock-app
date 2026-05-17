@@ -522,7 +522,6 @@ with tab_rat:
     roe = safe_float(info.get("returnOnEquity"))
     roa = safe_float(info.get("returnOnAssets"))
     profit_margin = safe_float(info.get("profitMargins"))
-    op_margin = safe_float(info.get("operatingMargins"))
     gross_margin = safe_float(info.get("grossMargins"))
     debt_equity = safe_float(info.get("debtToEquity"))
     current_ratio = safe_float(info.get("currentRatio"))
@@ -719,11 +718,15 @@ with tab_bench:
             )
 
             st.markdown("#### P/E y ROE vs peers")
+
+            pe_series = df_bench["pe"]
+            roe_series = df_bench["roe"]
+
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
                 go.Bar(
                     x=df_bench["Ticker"],
-                    y=df_bench["P/E"],
+                    y=pe_series,
                     name="P/E",
                     marker_color=ACCENT_BLUE,
                 ),
@@ -732,7 +735,7 @@ with tab_bench:
             fig_comp.add_trace(
                 go.Scatter(
                     x=df_bench["Ticker"],
-                    y=df_bench["ROE"] * 100,
+                    y=roe_series * 100,
                     name="ROE (%)",
                     mode="lines+markers",
                     line_color=ACCENT_GREEN,
