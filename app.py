@@ -15,14 +15,13 @@ st.set_page_config(
     page_title="Equity Terminal — Value Investing",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # =========================
-# TEMA OSCURO PROFESIONAL
+# COLORES
 # =========================
 PRIMARY_BG = "#050816"
-SECONDARY_BG = "#0B1020"
 CARD_BG = "#111827"
 ACCENT_BLUE = "#38BDF8"
 ACCENT_GREEN = "#22C55E"
@@ -34,43 +33,40 @@ BORDER = "#1F2937"
 st.markdown(
     f"""
     <style>
+    [data-testid="collapsedControl"] {{ display: none; }}
     .block-container {{
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
-        max-width: 1400px;
-    }}
-    body {{
-        background-color: {PRIMARY_BG};
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1300px;
     }}
     .stApp {{
         background: radial-gradient(circle at top left, #111827 0, #020617 55%);
         color: {TEXT_PRIMARY};
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     }}
-    .css-18e3th9 {{
-        background-color: transparent !important;
+    .hero-title {{
+        font-size: 2.8rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-align: center;
+        background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_GREEN});
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.2rem;
     }}
-    .css-1d391kg, .stSidebar {{
-        background: linear-gradient(180deg, #020617 0, #020617 40px, #020617 100%);
-        border-right: 1px solid {BORDER};
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        font-size: 0.9rem;
-        padding: 0.75rem 1.25rem;
-    }}
-    .big-title {{
-        font-size: 1.8rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-    }}
-    .tagline {{
+    .hero-sub {{
+        text-align: center;
         color: {TEXT_SECONDARY};
-        font-size: 0.85rem;
-        letter-spacing: 0.08em;
+        font-size: 1rem;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
+        margin-bottom: 2rem;
+    }}
+    .search-row {{
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
     }}
     .metric-card {{
         background: {CARD_BG};
@@ -99,6 +95,10 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 0.08em;
         margin-bottom: 0.4rem;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-size: 0.9rem;
+        padding: 0.75rem 1.25rem;
     }}
     </style>
     """,
@@ -203,122 +203,83 @@ def compute_valuations(info):
 
     # 1) DCF FCF-based
     if fcf is not None and shares and shares > 0:
-        g_high = 0.10
-        g_low = 0.03
-        r = 0.10
-
+        g_high, g_low, r = 0.10, 0.03, 0.10
         fcf0 = fcf
         pv = 0.0
         for t in range(1, 6):
-            f = fcf0 * (1 + g_high) ** t
-            pv += f / (1 + r) ** t
+            pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
         for t in range(6, 11):
-            f = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5)
-            pv += f / (1 + r) ** t
-        terminal = (
-            fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
-        )
+            pv += fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5) / (1 + r) ** t
+        terminal = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
         pv_terminal = terminal / (1 + r) ** 10
         equity_value = pv + pv_terminal + cash - total_debt
-        value_per_share = equity_value / shares
-        methods.append(
-            {
-                "name": "DCF (FCF basado)",
-                "value": value_per_share,
-                "params": "g 10%→3%, r 10%",
-            }
-        )
+        methods.append({"name": "DCF (FCF)", "value": equity_value / shares, "params": "g 10%→3%, r 10%"})
 
     # 2) EV/EBITDA
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
-        target_multiple = 12.0
-        enterprise_value = ebitda * target_multiple
-        equity_value = enterprise_value + cash - total_debt
-        value_per_share = equity_value / shares
-        methods.append(
-            {
-                "name": f"EV/EBITDA ({target_multiple:.0f}×)",
-                "value": value_per_share,
-                "params": f"EBITDA={fmt_large(ebitda)}",
-            }
-        )
+        ev = ebitda * 12.0
+        methods.append({"name": "EV/EBITDA (12×)", "value": (ev + cash - total_debt) / shares, "params": f"EBITDA={fmt_large(ebitda)}"})
 
-    # 3) P/S objetivo
+    # 3) P/S
     if revenue is not None and shares and shares > 0:
-        target_ps = 5.0
-        equity_value = revenue * target_ps
-        value_per_share = equity_value / shares
-        methods.append(
-            {
-                "name": "P/Ventas (P/S)",
-                "value": value_per_share,
-                "params": f"Ventas={fmt_large(revenue)}  mult={target_ps:.1f}×",
-            }
-        )
+        methods.append({"name": "P/Ventas (5×)", "value": revenue * 5.0 / shares, "params": f"Ventas={fmt_large(revenue)}"})
 
-    # 4) P/B objetivo
+    # 4) P/B
     if bvps is not None and bvps > 0:
-        target_pb = 2.0
-        value_per_share = bvps * target_pb
-        methods.append(
-            {
-                "name": "P/Valor en Libros (P/B)",
-                "value": value_per_share,
-                "params": f"BVPS={bvps:.2f}  mult={target_pb:.1f}×",
-            }
-        )
+        methods.append({"name": "P/Valor Libros (2×)", "value": bvps * 2.0, "params": f"BVPS={bvps:.2f}"})
 
-    # 5) Graham Number
-    if eps is None or eps <= 0:
-        eps_use = forward_eps
-    else:
-        eps_use = eps
-    if eps_use is not None and eps_use > 0 and bvps is not None and bvps > 0:
-        graham = math.sqrt(22.5 * eps_use * bvps)
-        methods.append(
-            {
-                "name": "Graham Number",
-                "value": graham,
-                "params": f"EPS={eps_use:.2f}  BVPS={bvps:.2f}",
-            }
-        )
+    # 5) Graham
+    eps_use = eps if (eps and eps > 0) else forward_eps
+    if eps_use and eps_use > 0 and bvps and bvps > 0:
+        methods.append({"name": "Graham Number", "value": math.sqrt(22.5 * eps_use * bvps), "params": f"EPS={eps_use:.2f} BVPS={bvps:.2f}"})
 
     return methods, price
 
 
 # =========================
-# SIDEBAR
+# HERO + BÚSQUEDA CENTRAL
 # =========================
-with st.sidebar:
-    st.header("⚙️ Configuración")
+st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
 
+col_search, col_btn = st.columns([4, 1])
+with col_search:
     query = st.text_input(
-        "🔎 Buscar empresa o ticker",
-        value="Apple",
-        help="Escribe el nombre (Apple, Amper, Stellantis...) o el ticker (AAPL, TEF.MC...).",
+        "",
+        placeholder="🔎  Busca una empresa o ticker  (ej: Apple, AAPL, Stellantis, TEF.MC...)",
+        label_visibility="collapsed",
     )
+with col_btn:
+    analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-    suggestions = search_ticker(query) if query else []
+# Sugerencias de autocomplete
+if query:
+    suggestions = search_ticker(query)
     if suggestions:
-        choice = st.selectbox("Sugerencias", suggestions)
-        ticker = choice.split(" — ")[0].strip()
+        choice = st.selectbox("Sugerencias", suggestions, label_visibility="collapsed")
+        ticker_sym = choice.split(" — ")[0].strip()
     else:
-        st.caption("No hay sugerencias, se usará el texto como ticker directo.")
-        ticker = query.strip().upper()
+        ticker_sym = query.strip().upper()
+else:
+    ticker_sym = ""
 
+# Tickers de correlación (ocultos hasta que se analice)
+corr_tickers_text = "AAPL\nMSFT\nGOOGL\nAMZN\nMETA"
+period = "3y"
+
+if not analyze_btn or not ticker_sym:
     st.markdown("---")
-    corr_tickers_text = st.text_area(
-        "Tickers para correlación (uno por línea)",
-        value="AAPL\nMSFT\nGOOGL\nAMZN\nMETA",
-    )
-    period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
-    analyze_btn = st.button("🔍 Analizar", use_container_width=True, type="primary")
-
-if not analyze_btn:
     st.markdown(
-        """
-        <div class="big-title">📊 Equity Terminal</div>
-        <p class="tagline">Escribe una empresa a la izquierda y pulsa <b>Analizar</b></p>
+        f"""
+        <div style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
+            <div style="font-size:3rem;">🏦</div>
+            <div style="font-size:1.1rem; margin-top:0.5rem;">
+                Introduce el nombre o ticker de una empresa y pulsa <b>Analizar →</b>
+            </div>
+            <div style="font-size:0.85rem; margin-top:0.5rem;">
+                Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex
+            </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -327,8 +288,6 @@ if not analyze_btn:
 # =========================
 # CARGA DE DATOS
 # =========================
-ticker_sym = ticker.strip().upper()
-
 with st.spinner(f"Cargando datos de {ticker_sym}..."):
     try:
         stock = yf.Ticker(ticker_sym)
@@ -338,9 +297,7 @@ with st.spinner(f"Cargando datos de {ticker_sym}..."):
         st.error(f"Error al obtener datos de Yahoo Finance: {e}")
         st.stop()
 
-price = safe_float(info.get("currentPrice")) or safe_float(
-    info.get("regularMarketPrice")
-)
+price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
 if price is None:
     st.error("No se pudo obtener el precio de mercado. Verifica el ticker.")
     st.stop()
@@ -350,20 +307,49 @@ sector = info.get("sector", "N/A")
 industry = info.get("industry", "N/A")
 currency = info.get("currency", "USD")
 
-# CABECERA
+# CABECERA DE EMPRESA
+prev_close = safe_float(info.get("previousClose"))
+if price and prev_close:
+    chg = price - prev_close
+    chg_pct = chg / prev_close * 100
+    color_chg = ACCENT_GREEN if chg >= 0 else ACCENT_RED
+    delta_str = f'<span style="color:{color_chg}">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
+else:
+    delta_str = ""
+
 st.markdown(
     f"""
-    <div class="big-title">
-        <span>📈 Equity Terminal</span>
+    <div style="margin: 1.2rem 0 0.5rem 0;">
+        <span style="font-size:1.6rem;font-weight:700;">{company_name}</span>
+        <span style="color:{TEXT_SECONDARY};font-size:1rem;margin-left:0.8rem;">{ticker_sym} · {sector} · {industry} · {currency}</span>
     </div>
-    <div class="tagline">
-        {company_name} ({ticker_sym}) · {sector} · {industry} · Cotizado en {currency}
+    <div style="font-size:2rem;font-weight:700;margin-bottom:0.2rem;">
+        {price:.2f} {currency} {delta_str}
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+mc = fmt_large(info.get("marketCap"))
+high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
+low52 = fmt_num(info.get("fiftyTwoWeekLow"))
+beta_v = fmt_num(info.get("beta"))
+
+k1, k2, k3, k4 = st.columns(4)
+for col, label, val in [
+    (k1, "Market Cap", mc),
+    (k2, "52W Máx", f"{high52} {currency}"),
+    (k3, "52W Mín", f"{low52} {currency}"),
+    (k4, "Beta", beta_v),
+]:
+    with col:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>', unsafe_allow_html=True)
+
 st.markdown("")
 
+# =========================
+# TABS DE ANÁLISIS
+# =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
     ["🏢 Empresa", "📊 Ratios", "🎯 Valoración", "📚 Benchmarks", "📉 Correlaciones", "📈 Precio"]
 )
@@ -372,90 +358,30 @@ tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
-        st.subheader("Perfil de la compañía")
+        st.subheader("Descripción")
         desc = info.get("longBusinessSummary")
         if desc:
             st.write(desc)
         else:
             st.info("No hay descripción disponible.")
-
     with c2:
-        st.subheader("Snapshot de mercado")
-        prev_close = safe_float(info.get("previousClose"))
-        if price and prev_close:
-            chg = price - prev_close
-            chg_pct = chg / prev_close * 100
-            delta_str = f"{chg:+.2f} ({chg_pct:+.2f}%)"
-        else:
-            delta_str = "N/A"
-
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown('<div class="metric-label">Precio actual</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="metric-value">{price:.2f} {currency} <span class="metric-sub">{delta_str}</span></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        mc = fmt_large(info.get("marketCap"))
-        high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
-        low52 = fmt_num(info.get("fiftyTwoWeekLow"))
-
-        c2a, c2b = st.columns(2)
-        with c2a:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown('<div class="metric-label">Market Cap</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-value">{mc}</div>', unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c2b:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown('<div class="metric-label">52W Range</div>', unsafe_allow_html=True)
+        st.subheader("Datos corporativos")
+        employees = info.get("fullTimeEmployees")
+        for label, val in [
+            ("País", info.get("country", "N/A")),
+            ("Ciudad", info.get("city", "N/A")),
+            ("Exchange", info.get("exchange", "N/A")),
+            ("Empleados", f"{employees:,}" if employees else "N/A"),
+            ("Sector", sector),
+            ("Industria", industry),
+        ]:
             st.markdown(
-                f'<div class="metric-value">{low52} – {high52} {currency}</div>',
+                f'<div class="metric-card" style="margin-bottom:0.4rem;"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>',
                 unsafe_allow_html=True,
             )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    c3, c4, c5, c6 = st.columns(4)
-    employees = info.get("fullTimeEmployees")
-    with c3:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown('<div class="metric-label">Empleados</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="metric-value">{employees:,}' if employees else '<div class="metric-value">N/A',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c4:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown('<div class="metric-label">País</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="metric-value">{info.get("country","N/A")}</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c5:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown('<div class="metric-label">Ciudad</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="metric-value">{info.get("city","N/A")}</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c6:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown('<div class="metric-label">Exchange</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="metric-value">{info.get("exchange","N/A")}</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ==== TAB RATIOS ====
 with tab_rat:
-    st.subheader("Ratios clave")
-
     pe = safe_float(info.get("trailingPE"))
     fwd_pe = safe_float(info.get("forwardPE"))
     pb = safe_float(info.get("priceToBook"))
@@ -468,12 +394,11 @@ with tab_rat:
     current_ratio = safe_float(info.get("currentRatio"))
     quick_ratio = safe_float(info.get("quickRatio"))
     dividend_yield = safe_float(info.get("dividendYield"))
-    beta = safe_float(info.get("beta"))
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("**Valoración**")
+        st.markdown("**Valoración de mercado**")
         st.write(f"P/E (TTM): **{fmt_num(pe)}**")
         st.write(f"P/E (Fwd): **{fmt_num(fwd_pe)}**")
         st.write(f"P/B: **{fmt_num(pb)}**")
@@ -491,11 +416,9 @@ with tab_rat:
         st.write(f"Deuda/Equity: **{fmt_num(debt_equity)}**")
         st.write(f"Current ratio: **{fmt_num(current_ratio)}**")
         st.write(f"Quick ratio: **{fmt_num(quick_ratio)}**")
-        st.write(f"Beta: **{fmt_num(beta)}**")
         st.write(f"Dividend yield: **{fmt_num(dividend_yield*100 if dividend_yield else None, 2, '%')}**")
 
     st.markdown("---")
-
     st.markdown("**Perfil financiero (radar)**")
 
     def norm(v, lo, hi):
@@ -534,7 +457,7 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# ==== TAB VALORACIÓN (SIN HTML) ====
+# ==== TAB VALORACIÓN ====
 with tab_val:
     st.subheader("Valoración intrínseca por métodos")
     methods, current_price = compute_valuations(info)
@@ -553,21 +476,19 @@ with tab_val:
             else:
                 upside = None
 
-            # Filtro: ocultar métodos extremadamente alejados del precio
             if upside is not None and (upside < -80 or upside > 200):
                 continue
 
-            # Texto de margen de seguridad sencillo
             if upside is None:
                 margen_txt = "N/A"
             elif upside >= 30:
-                margen_txt = f"{upside:.1f}% (alto)"
+                margen_txt = f"{upside:.1f}% ▲ alto"
             elif upside >= 10:
-                margen_txt = f"{upside:.1f}% (bueno)"
+                margen_txt = f"{upside:.1f}% ↑ bueno"
             elif upside >= -10:
-                margen_txt = f"{upside:.1f}% (neutral)"
+                margen_txt = f"{upside:.1f}% → neutral"
             else:
-                margen_txt = f"{upside:.1f}% (malo)"
+                margen_txt = f"{upside:.1f}% ▼ malo"
 
             registros.append(
                 {
@@ -585,7 +506,6 @@ with tab_val:
             df_val_tabla = pd.DataFrame(registros)
             st.dataframe(df_val_tabla, use_container_width=True)
 
-            # Gráfico de barras
             df_val = pd.DataFrame(
                 {
                     "Método": [r["Método"] for r in registros],
@@ -603,8 +523,8 @@ with tab_val:
             fig_bar.add_hline(
                 y=current_price,
                 line_dash="dash",
-                line_color="red",
-                annotation_text=f"Precio: {current_price:.2f}",
+                line_color=ACCENT_RED,
+                annotation_text=f"Precio actual: {current_price:.2f}",
             )
             fig_bar.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -618,7 +538,7 @@ with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
     peers = get_benchmark_list(info, ticker_sym)
     if not peers:
-        st.info("No hay benchmarks definidos para este sector. Puedes ampliar DEFAULT_BENCHMARKS en el código.")
+        st.info("No hay benchmarks definidos para este sector.")
     else:
         tickers_all = [ticker_sym] + peers
         with st.spinner("Descargando datos de benchmarks..."):
@@ -629,14 +549,11 @@ with tab_bench:
                     inf = tk.info
                     data[t] = {
                         "name": inf.get("shortName", t),
-                        "sector": inf.get("sector", ""),
                         "pe": safe_float(inf.get("trailingPE")),
                         "pb": safe_float(inf.get("priceToBook")),
                         "roe": safe_float(inf.get("returnOnEquity")),
                         "margin": safe_float(inf.get("profitMargins")),
-                        "price": safe_float(inf.get("currentPrice")) or safe_float(
-                            inf.get("regularMarketPrice")
-                        ),
+                        "price": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
                         "marketCap": safe_float(inf.get("marketCap")),
                     }
                 except Exception:
@@ -649,56 +566,27 @@ with tab_bench:
             df_bench.index.name = "Ticker"
             df_bench.reset_index(inplace=True)
 
-            st.markdown('<div class="bench-header">Ratios comparables</div>', unsafe_allow_html=True)
             st.dataframe(
-                df_bench[
-                    ["Ticker", "name", "pe", "pb", "roe", "margin", "price", "marketCap"]
-                ].rename(
-                    columns={
-                        "name": "Nombre",
-                        "pe": "P/E",
-                        "pb": "P/B",
-                        "roe": "ROE",
-                        "margin": "Margen neto",
-                        "price": "Precio",
-                        "marketCap": "Market Cap",
-                    }
+                df_bench[["Ticker", "name", "pe", "pb", "roe", "margin", "price", "marketCap"]].rename(
+                    columns={"name": "Nombre", "pe": "P/E", "pb": "P/B", "roe": "ROE",
+                              "margin": "Margen neto", "price": "Precio", "marketCap": "Market Cap"}
                 ),
                 use_container_width=True,
             )
 
-            st.markdown("#### P/E y ROE vs peers")
-
-            pe_series = df_bench["pe"]
-            roe_series = df_bench["roe"]
-
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
-                go.Bar(
-                    x=df_bench["Ticker"],
-                    y=pe_series,
-                    name="P/E",
-                    marker_color=ACCENT_BLUE,
-                ),
+                go.Bar(x=df_bench["Ticker"], y=df_bench["pe"], name="P/E", marker_color=ACCENT_BLUE),
                 secondary_y=False,
             )
             fig_comp.add_trace(
-                go.Scatter(
-                    x=df_bench["Ticker"],
-                    y=roe_series * 100,
-                    name="ROE (%)",
-                    mode="lines+markers",
-                    line_color=ACCENT_GREEN,
-                ),
+                go.Scatter(x=df_bench["Ticker"], y=df_bench["roe"] * 100, name="ROE (%)",
+                           mode="lines+markers", line_color=ACCENT_GREEN),
                 secondary_y=True,
             )
             fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
             fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
-            fig_comp.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=400,
-            )
+            fig_comp.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
             st.plotly_chart(fig_comp, use_container_width=True)
 
 # ==== TAB CORRELACIONES ====
@@ -710,9 +598,7 @@ with tab_corr:
 
     with st.spinner("Descargando precios históricos..."):
         try:
-            prices = yf.download(
-                corr_tickers, period=period, auto_adjust=True, progress=False
-            )["Close"]
+            prices = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)["Close"]
             if isinstance(prices, pd.Series):
                 prices = prices.to_frame(name=corr_tickers[0])
             returns = prices.pct_change().dropna()
@@ -722,29 +608,14 @@ with tab_corr:
 
     if returns is not None and not returns.empty:
         corr = returns.corr()
-        st.markdown("#### Matriz de correlación")
-        fig_corr = px.imshow(
-            corr,
-            text_auto=".2f",
-            color_continuous_scale="RdBu_r",
-            zmin=-1,
-            zmax=1,
-        )
-        fig_corr.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-        )
+        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
+        fig_corr.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
         st.plotly_chart(fig_corr, use_container_width=True)
 
         st.markdown("#### Retornos acumulados")
         cum = (1 + returns).cumprod()
         fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"})
-        fig_cum.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-        )
+        fig_cum.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
         st.plotly_chart(fig_cum, use_container_width=True)
 
 # ==== TAB PRECIO ====
@@ -753,39 +624,19 @@ with tab_price:
     if hist is None or hist.empty:
         st.warning("No hay datos históricos disponibles.")
     else:
-        fig_price = make_subplots(
-            rows=2,
-            cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.7, 0.3],
+        fig_price = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                                  vertical_spacing=0.03, row_heights=[0.7, 0.3])
+        fig_price.add_trace(
+            go.Candlestick(x=hist.index, open=hist["Open"], high=hist["High"],
+                           low=hist["Low"], close=hist["Close"], name="OHLC"),
+            row=1, col=1,
         )
         fig_price.add_trace(
-            go.Candlestick(
-                x=hist.index,
-                open=hist["Open"],
-                high=hist["High"],
-                low=hist["Low"],
-                close=hist["Close"],
-                name="OHLC",
-            ),
-            row=1,
-            col=1,
-        )
-        fig_price.add_trace(
-            go.Bar(
-                x=hist.index,
-                y=hist["Volume"],
-                name="Volumen",
-                marker_color=ACCENT_BLUE,
-            ),
-            row=2,
-            col=1,
+            go.Bar(x=hist.index, y=hist["Volume"], name="Volumen", marker_color=ACCENT_BLUE),
+            row=2, col=1,
         )
         fig_price.update_layout(
-            height=600,
-            xaxis_rangeslider_visible=False,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            height=600, xaxis_rangeslider_visible=False,
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(fig_price, use_container_width=True)
