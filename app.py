@@ -62,12 +62,6 @@ st.markdown(
         text-transform: uppercase;
         margin-bottom: 2rem;
     }}
-    .search-row {{
-        display: flex;
-        justify-content: center;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
-    }}
     .metric-card {{
         background: {CARD_BG};
         border-radius: 10px;
@@ -187,10 +181,7 @@ def get_benchmark_list(info, main_ticker):
 
 def compute_valuations(info):
     methods = []
-
-    price = safe_float(info.get("currentPrice")) or safe_float(
-        info.get("regularMarketPrice")
-    )
+    price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
     shares = safe_float(info.get("sharesOutstanding"))
     fcf = safe_float(info.get("freeCashflow"))
     revenue = safe_float(info.get("totalRevenue"))
@@ -201,7 +192,6 @@ def compute_valuations(info):
     total_debt = safe_float(info.get("totalDebt"), 0.0)
     cash = safe_float(info.get("totalCash"), 0.0)
 
-    # 1) DCF FCF-based
     if fcf is not None and shares and shares > 0:
         g_high, g_low, r = 0.10, 0.03, 0.10
         fcf0 = fcf
@@ -215,20 +205,16 @@ def compute_valuations(info):
         equity_value = pv + pv_terminal + cash - total_debt
         methods.append({"name": "DCF (FCF)", "value": equity_value / shares, "params": "g 10%→3%, r 10%"})
 
-    # 2) EV/EBITDA
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
         ev = ebitda * 12.0
         methods.append({"name": "EV/EBITDA (12×)", "value": (ev + cash - total_debt) / shares, "params": f"EBITDA={fmt_large(ebitda)}"})
 
-    # 3) P/S
     if revenue is not None and shares and shares > 0:
         methods.append({"name": "P/Ventas (5×)", "value": revenue * 5.0 / shares, "params": f"Ventas={fmt_large(revenue)}"})
 
-    # 4) P/B
     if bvps is not None and bvps > 0:
         methods.append({"name": "P/Valor Libros (2×)", "value": bvps * 2.0, "params": f"BVPS={bvps:.2f}"})
 
-    # 5) Graham
     eps_use = eps if (eps and eps > 0) else forward_eps
     if eps_use and eps_use > 0 and bvps and bvps > 0:
         methods.append({"name": "Graham Number", "value": math.sqrt(22.5 * eps_use * bvps), "params": f"EPS={eps_use:.2f} BVPS={bvps:.2f}"})
@@ -237,11 +223,14 @@ def compute_valuations(info):
 
 
 # =========================
-# HERO + BÚSQUEDA CENTRAL
+# HERO
 # =========================
 st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
 
+# =========================
+# BÚSQUEDA + OPCIONES
+# =========================
 col_search, col_btn = st.columns([4, 1])
 with col_search:
     query = st.text_input(
@@ -252,7 +241,7 @@ with col_search:
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-# Sugerencias de autocomplete
+# Sugerencias
 if query:
     suggestions = search_ticker(query)
     if suggestions:
@@ -263,9 +252,22 @@ if query:
 else:
     ticker_sym = ""
 
-# Tickers de correlación (ocultos hasta que se analice)
-corr_tickers_text = "AAPL\nMSFT\nGOOGL\nAMZN\nMETA"
-period = "3y"
+# Opciones avanzadas en expander
+with st.expander("⚙️ Opciones de análisis", expanded=False):
+    op1, op2 = st.columns([1, 2])
+    with op1:
+        period = st.selectbox(
+            "Período histórico",
+            ["1y", "3y", "5y", "10y"],
+            index=1,
+        )
+    with op2:
+        corr_tickers_input = st.text_input(
+            "Tickers para correlación (separados por comas)",
+            value="AAPL, MSFT, GOOGL, AMZN, META",
+        )
+
+corr_tickers_text = corr_tickers_input if "corr_tickers_input" in dir() else "AAPL\nMSFT\nGOOGL\nAMZN\nMETA"
 
 if not analyze_btn or not ticker_sym:
     st.markdown("---")
@@ -343,12 +345,15 @@ for col, label, val in [
     (k4, "Beta", beta_v),
 ]:
     with col:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>',
+            unsafe_allow_html=True,
+        )
 
 st.markdown("")
 
 # =========================
-# TABS DE ANÁLISIS
+# TABS
 # =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
     ["🏢 Empresa", "📊 Ratios", "🎯 Valoración", "📚 Benchmarks", "📉 Correlaciones", "📈 Precio"]
@@ -396,21 +401,18 @@ with tab_rat:
     dividend_yield = safe_float(info.get("dividendYield"))
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
         st.markdown("**Valoración de mercado**")
         st.write(f"P/E (TTM): **{fmt_num(pe)}**")
         st.write(f"P/E (Fwd): **{fmt_num(fwd_pe)}**")
         st.write(f"P/B: **{fmt_num(pb)}**")
         st.write(f"P/S: **{fmt_num(ps)}**")
-
     with col2:
         st.markdown("**Rentabilidad**")
         st.write(f"ROE: **{fmt_num(roe*100 if roe else None, 1, '%')}**")
         st.write(f"ROA: **{fmt_num(roa*100 if roa else None, 1, '%')}**")
         st.write(f"Margen bruto: **{fmt_num(gross_margin*100 if gross_margin else None, 1, '%')}**")
         st.write(f"Margen neto: **{fmt_num(profit_margin*100 if profit_margin else None, 1, '%')}**")
-
     with col3:
         st.markdown("**Riesgo y liquidez**")
         st.write(f"Deuda/Equity: **{fmt_num(debt_equity)}**")
@@ -592,7 +594,7 @@ with tab_bench:
 # ==== TAB CORRELACIONES ====
 with tab_corr:
     st.subheader("Correlación de rentabilidades")
-    corr_tickers = [t.strip().upper() for t in corr_tickers_text.split("\n") if t.strip()]
+    corr_tickers = [t.strip().upper() for t in corr_tickers_text.replace(",", "\n").split("\n") if t.strip()]
     if ticker_sym not in corr_tickers:
         corr_tickers.insert(0, ticker_sym)
 
@@ -608,6 +610,7 @@ with tab_corr:
 
     if returns is not None and not returns.empty:
         corr = returns.corr()
+        st.markdown("#### Matriz de correlación")
         fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
         fig_corr.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
         st.plotly_chart(fig_corr, use_container_width=True)
