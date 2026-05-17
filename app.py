@@ -764,7 +764,6 @@ with tab_val:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-
 # ==== TAB BENCHMARKS ====
 with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
@@ -780,13 +779,13 @@ with tab_bench:
                     tk  = yf.Ticker(t)
                     inf = tk.info
                     data[t] = {
-                        "name":      inf.get("shortName", t),
-                        "pe":        safe_float(inf.get("trailingPE")),
-                        "pb":        safe_float(inf.get("priceToBook")),
-                        "roe":       safe_float(inf.get("returnOnEquity")),
-                        "margin":    safe_float(inf.get("profitMargins")),
-                        "price":     safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
-                        "marketCap": safe_float(inf.get("marketCap")),
+                        "Nombre":    inf.get("shortName", t),
+                        "P/E":       safe_float(inf.get("trailingPE")),
+                        "P/B":       safe_float(inf.get("priceToBook")),
+                        "ROE":       safe_float(inf.get("returnOnEquity")),
+                        "Margen neto": safe_float(inf.get("profitMargins")),
+                        "Precio":    safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        "Market Cap": safe_float(inf.get("marketCap")),
                     }
                 except Exception:
                     continue
@@ -798,22 +797,100 @@ with tab_bench:
             df_bench.index.name = "Ticker"
             df_bench.reset_index(inplace=True)
 
-            st.dataframe(
-                df_bench[["Ticker", "name", "pe", "pb", "roe", "margin", "price", "marketCap"]].rename(
-                    columns={"name": "Nombre", "pe": "P/E", "pb": "P/B", "roe": "ROE",
-                              "margin": "Margen neto", "price": "Precio", "marketCap": "Market Cap"}
-                ),
-                use_container_width=True,
+            # Formato columnas numéricas
+            def fmt_pe(x):
+                return f"{x:.1f}" if pd.notna(x) else "N/A"
+
+            def fmt_ratio(x):
+                return f"{x*100:.1f}%" if pd.notna(x) else "N/A"
+
+            def fmt_price(x):
+                return f"{x:.2f}" if pd.notna(x) else "N/A"
+
+            def fmt_mc(x):
+                return fmt_large(x)
+
+            df_view = pd.DataFrame({
+                "Ticker": df_bench["Ticker"],
+                "Nombre": df_bench["Nombre"],
+                "Precio": df_bench["Precio"].apply(fmt_price),
+                "P/E": df_bench["P/E"].apply(fmt_pe),
+                "P/B": df_bench["P/B"].apply(fmt_pe),
+                "ROE": df_bench["ROE"].apply(fmt_ratio),
+                "Margen neto": df_bench["Margen neto"].apply(fmt_ratio),
+                "Market Cap": df_bench["Market Cap"].apply(fmt_mc),
+            })
+
+            # Orden por Market Cap descendente
+            df_view = df_view.reindex(
+                df_bench.sort_values("Market Cap", ascending=False).index
             )
 
+            # Tabla con fondo oscuro
+            styled_bench = (
+                df_view.style
+                .set_properties(
+                    **{
+                        "background-color": "#111827",
+                        "color": "#E5E7EB",
+                        "border": "1px solid #1F2937",
+                        "font-size": "13px",
+                    }
+                )
+                .set_table_styles(
+                    [
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#020617"),
+                                ("color", "#9CA3AF"),
+                                ("font-size", "11px"),
+                                ("text-transform", "uppercase"),
+                                ("letter-spacing", "0.06em"),
+                                ("border-bottom", "2px solid #1F2937"),
+                                ("padding", "6px 10px"),
+                            ],
+                        },
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("padding", "5px 10px"),
+                                ("border-bottom", "1px solid #1F2937"),
+                            ],
+                        },
+                        {
+                            "selector": "tr:hover td",
+                            "props": [
+                                ("background-color", "#1F2937"),
+                            ],
+                        },
+                    ]
+                )
+            )
+
+            st.table(styled_bench)
+
+            st.markdown("---")
+
+            # Gráfico P/E vs ROE
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
-                go.Bar(x=df_bench["Ticker"], y=df_bench["pe"], name="P/E", marker_color=ACCENT_BLUE),
+                go.Bar(
+                    x=df_bench["Ticker"],
+                    y=df_bench["P/E"],
+                    name="P/E",
+                    marker_color=ACCENT_BLUE,
+                ),
                 secondary_y=False,
             )
             fig_comp.add_trace(
-                go.Scatter(x=df_bench["Ticker"], y=df_bench["roe"] * 100, name="ROE (%)",
-                           mode="lines+markers", line_color=ACCENT_GREEN),
+                go.Scatter(
+                    x=df_bench["Ticker"],
+                    y=df_bench["ROE"] * 100,
+                    name="ROE (%)",
+                    mode="lines+markers",
+                    line_color=ACCENT_GREEN,
+                ),
                 secondary_y=True,
             )
             fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
