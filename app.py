@@ -1,5 +1,390 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import requests
+import math
+
 # =========================
-# CARGA DE DATOS PRINCIPALES
+# CONFIGURACIÓN DE PÁGINA
+# =========================
+st.set_page_config(
+    page_title="Equity Terminal — Value Investing",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# =========================
+# TEMA OSCURO PROFESIONAL
+# =========================
+PRIMARY_BG = "#050816"
+SECONDARY_BG = "#0B1020"
+CARD_BG = "#111827"
+ACCENT_BLUE = "#38BDF8"
+ACCENT_GREEN = "#22C55E"
+ACCENT_RED = "#EF4444"
+TEXT_PRIMARY = "#E5E7EB"
+TEXT_SECONDARY = "#9CA3AF"
+BORDER = "#1F2937"
+
+st.markdown(
+    f"""
+    <style>
+    .block-container {{
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+        max-width: 1400px;
+    }}
+    body {{
+        background-color: {PRIMARY_BG};
+    }}
+    .stApp {{
+        background: radial-gradient(circle at top left, #111827 0, #020617 55%);
+        color: {TEXT_PRIMARY};
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    }}
+    .css-18e3th9 {{
+        background-color: transparent !important;
+    }}
+    .css-1d391kg, .stSidebar {{
+        background: linear-gradient(180deg, #020617 0, #020617 40px, #020617 100%);
+        border-right: 1px solid {BORDER};
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-size: 0.9rem;
+        padding: 0.75rem 1.25rem;
+    }}
+    .big-title {{
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }}
+    .tagline {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }}
+    .metric-card {{
+        background: {CARD_BG};
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        border: 1px solid {BORDER};
+    }}
+    .metric-label {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.2rem;
+    }}
+    .metric-value {{
+        font-size: 1.1rem;
+        font-weight: 600;
+    }}
+    .metric-sub {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.75rem;
+    }}
+    .val-table {{
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }}
+    .val-table th {{
+        text-align: left;
+        padding: 0.4rem 0.6rem;
+        border-bottom: 1px solid {BORDER};
+        color: {TEXT_SECONDARY};
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }}
+    .val-table td {{
+        padding: 0.35rem 0.6rem;
+        border-bottom: 1px solid rgba(31,41,55,0.6);
+    }}
+    .val-method {{
+        font-weight: 500;
+    }}
+    .val-num {{
+        font-family: "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        text-align: right;
+    }}
+    .margin-good {{
+        color: {ACCENT_GREEN};
+        font-weight: 600;
+        text-align: right;
+    }}
+    .margin-ok {{
+        color: {ACCENT_BLUE};
+        font-weight: 600;
+        text-align: right;
+    }}
+    .margin-fair {{
+        color: #EAB308;
+        font-weight: 600;
+        text-align: right;
+    }}
+    .margin-poor {{
+        color: {ACCENT_RED};
+        font-weight: 600;
+        text-align: right;
+    }}
+    .bench-header {{
+        font-size: 0.8rem;
+        color: {TEXT_SECONDARY};
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.4rem;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# =========================
+# HELPERS
+# =========================
+def safe_float(x, default=None):
+    if x is None:
+        return default
+    try:
+        if isinstance(x, str) and x.strip() == "":
+            return default
+        v = float(x)
+        if math.isnan(v) or math.isinf(v):
+            return default
+        return v
+    except Exception:
+        return default
+
+
+def fmt_num(x, decimals=2, suffix=""):
+    v = safe_float(x, None)
+    if v is None:
+        return "N/A"
+    return f"{v:.{decimals}f}{suffix}"
+
+
+def fmt_large(x):
+    v = safe_float(x, None)
+    if v is None:
+        return "N/A"
+    sign = -1 if v < 0 else 1
+    v = abs(v)
+    if v >= 1e12:
+        s = f"{sign*v/1e12:.2f}T"
+    elif v >= 1e9:
+        s = f"{sign*v/1e9:.2f}B"
+    elif v >= 1e6:
+        s = f"{sign*v/1e6:.2f}M"
+    else:
+        s = f"{sign*v:.0f}"
+    return s
+
+
+def margin_badge(upside_pct):
+    v = safe_float(upside_pct, None)
+    if v is None:
+        return "N/A", "margin-fair"
+    if v >= 30:
+        return f"+{v:.1f}%", "margin-good"
+    if v >= 10:
+        return f"+{v:.1f}%", "margin-ok"
+    if v >= -10:
+        return f"{v:.1f}%", "margin-fair"
+    return f"{v:.1f}%", "margin-poor"
+
+
+def search_ticker(query: str):
+    if not query:
+        return []
+    try:
+        url = (
+            "https://query2.finance.yahoo.com/v1/finance/search"
+            f"?q={query}&lang=en-US&region=US&quotesCount=8&newsCount=0"
+        )
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+        data = r.json()
+        results = []
+        for q in data.get("quotes", []):
+            if q.get("quoteType") not in ("EQUITY", "ETF"):
+                continue
+            symbol = q.get("symbol", "")
+            name = q.get("longname") or q.get("shortname", "")
+            exch = q.get("exchDisp", "")
+            results.append(f"{symbol} — {name} ({exch})")
+        return results
+    except Exception:
+        return []
+
+
+DEFAULT_BENCHMARKS = {
+    "Technology": ["AAPL", "MSFT", "GOOGL", "META", "AMZN"],
+    "Communication Services": ["GOOGL", "META", "NFLX", "DIS"],
+    "Financial Services": ["JPM", "BAC", "C", "GS"],
+    "Consumer Cyclical": ["AMZN", "TSLA", "HD", "MCD"],
+    "Energy": ["XOM", "CVX", "BP", "TOT"],
+}
+
+
+def get_benchmark_list(info, main_ticker):
+    sector = info.get("sector")
+    peers = DEFAULT_BENCHMARKS.get(sector, [])
+    peers = [p for p in peers if p.upper() != main_ticker.upper()]
+    return peers[:4]
+
+
+def compute_valuations(info):
+    methods = []
+
+    price = safe_float(info.get("currentPrice")) or safe_float(
+        info.get("regularMarketPrice")
+    )
+    shares = safe_float(info.get("sharesOutstanding"))
+    fcf = safe_float(info.get("freeCashflow"))
+    revenue = safe_float(info.get("totalRevenue"))
+    ebitda = safe_float(info.get("ebitda"))
+    bvps = safe_float(info.get("bookValue"))
+    eps = safe_float(info.get("trailingEps"))
+    forward_eps = safe_float(info.get("forwardEps"))
+    total_debt = safe_float(info.get("totalDebt"), 0.0)
+    cash = safe_float(info.get("totalCash"), 0.0)
+
+    # 1) DCF FCF-based
+    if fcf is not None and shares and shares > 0:
+        g_high = 0.10
+        g_low = 0.03
+        r = 0.10
+
+        fcf0 = fcf
+        pv = 0.0
+        for t in range(1, 6):
+            f = fcf0 * (1 + g_high) ** t
+            pv += f / (1 + r) ** t
+        for t in range(6, 11):
+            f = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5)
+            pv += f / (1 + r) ** t
+        terminal = (
+            fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
+        )
+        pv_terminal = terminal / (1 + r) ** 10
+        equity_value = pv + pv_terminal + cash - total_debt
+        value_per_share = equity_value / shares
+        methods.append(
+            {
+                "name": "DCF (FCF basado)",
+                "value": value_per_share,
+                "params": "g 10%→3%, r 10%",
+            }
+        )
+
+    # 2) EV/EBITDA
+    if ebitda is not None and ebitda > 0 and shares and shares > 0:
+        target_multiple = 12.0
+        enterprise_value = ebitda * target_multiple
+        equity_value = enterprise_value + cash - total_debt
+        value_per_share = equity_value / shares
+        methods.append(
+            {
+                "name": f"EV/EBITDA ({target_multiple:.0f}×)",
+                "value": value_per_share,
+                "params": f"EBITDA={fmt_large(ebitda)}",
+            }
+        )
+
+    # 3) P/S objetivo
+    if revenue is not None and shares and shares > 0:
+        target_ps = 5.0
+        equity_value = revenue * target_ps
+        value_per_share = equity_value / shares
+        methods.append(
+            {
+                "name": "P/Ventas (P/S)",
+                "value": value_per_share,
+                "params": f"Ventas={fmt_large(revenue)}  mult={target_ps:.1f}×",
+            }
+        )
+
+    # 4) P/B objetivo
+    if bvps is not None and bvps > 0:
+        target_pb = 2.0
+        value_per_share = bvps * target_pb
+        methods.append(
+            {
+                "name": "P/Valor en Libros (P/B)",
+                "value": value_per_share,
+                "params": f"BVPS={bvps:.2f}  mult={target_pb:.1f}×",
+            }
+        )
+
+    # 5) Graham Number
+    if eps is None or eps <= 0:
+        eps_use = forward_eps
+    else:
+        eps_use = eps
+    if eps_use is not None and eps_use > 0 and bvps is not None and bvps > 0:
+        graham = math.sqrt(22.5 * eps_use * bvps)
+        methods.append(
+            {
+                "name": "Graham Number",
+                "value": graham,
+                "params": f"EPS={eps_use:.2f}  BVPS={bvps:.2f}",
+            }
+        )
+
+    return methods, price
+
+
+# =========================
+# SIDEBAR
+# =========================
+with st.sidebar:
+    st.header("⚙️ Configuración")
+
+    query = st.text_input(
+        "🔎 Buscar empresa o ticker",
+        value="Apple",
+        help="Escribe el nombre (Apple, Amper, Stellantis...) o el ticker (AAPL, TEF.MC...).",
+    )
+
+    suggestions = search_ticker(query) if query else []
+    if suggestions:
+        choice = st.selectbox("Sugerencias", suggestions)
+        ticker = choice.split(" — ")[0].strip()
+    else:
+        st.caption("No hay sugerencias, se usará el texto como ticker directo.")
+        ticker = query.strip().upper()
+
+    st.markdown("---")
+    corr_tickers_text = st.text_area(
+        "Tickers para correlación (uno por línea)",
+        value="AAPL\nMSFT\nGOOGL\nAMZN\nMETA",
+    )
+    period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
+    analyze_btn = st.button("🔍 Analizar", use_container_width=True, type="primary")
+
+if not analyze_btn:
+    st.markdown(
+        """
+        <div class="big-title">📊 Equity Terminal</div>
+        <p class="tagline">Escribe una empresa a la izquierda y pulsa <b>Analizar</b></p>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# =========================
+# CARGA DE DATOS
 # =========================
 ticker_sym = ticker.strip().upper()
 
@@ -24,9 +409,7 @@ sector = info.get("sector", "N/A")
 industry = info.get("industry", "N/A")
 currency = info.get("currency", "USD")
 
-# =========================
 # CABECERA
-# =========================
 st.markdown(
     f"""
     <div class="big-title">
@@ -40,14 +423,11 @@ st.markdown(
 )
 st.markdown("")
 
-# =========================
-# TABS PRINCIPALES
-# =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
     ["🏢 Empresa", "📊 Ratios", "🎯 Valoración", "📚 Benchmarks", "📉 Correlaciones", "📈 Precio"]
 )
 
-# ========= TAB 1: EMPRESA =========
+# ==== TAB EMPRESA ====
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -131,7 +511,7 @@ with tab_emp:
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ========= TAB 2: RATIOS =========
+# ==== TAB RATIOS ====
 with tab_rat:
     st.subheader("Ratios clave")
 
@@ -176,8 +556,8 @@ with tab_rat:
 
     st.markdown("---")
 
-    # Radar simple
     st.markdown("**Perfil financiero (radar)**")
+
     def norm(v, lo, hi):
         v2 = safe_float(v, None)
         if v2 is None:
@@ -214,16 +594,14 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# ========= TAB 3: VALORACIÓN =========
+# ==== TAB VALORACIÓN ====
 with tab_val:
     st.subheader("Valoración intrínseca por métodos")
-
     methods, current_price = compute_valuations(info)
 
     if not methods:
         st.warning("No se pudo calcular ninguna valoración por falta de datos.")
     else:
-        # Tabla HTML de valoraciones
         rows_html = ""
         for m in methods:
             name = m["name"]
@@ -262,12 +640,8 @@ with tab_val:
         """
         st.markdown(table_html, unsafe_allow_html=True)
 
-        # Gráfico barras valor objetivo vs precio
         df_val = pd.DataFrame(
-            {
-                "Método": [m["name"] for m in methods],
-                "Valor": [m["value"] for m in methods],
-            }
+            {"Método": [m["name"] for m in methods], "Valor": [m["value"] for m in methods]}
         )
         fig_bar = px.bar(
             df_val,
@@ -290,13 +664,12 @@ with tab_val:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ========= TAB 4: BENCHMARKS =========
+# ==== TAB BENCHMARKS ====
 with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
-
     peers = get_benchmark_list(info, ticker_sym)
     if not peers:
-        st.info("No hay benchmarks definidos para este sector. Puedes ampliar el diccionario DEFAULT_BENCHMARKS en el código.")
+        st.info("No hay benchmarks definidos para este sector. Puedes ampliar DEFAULT_BENCHMARKS en el código.")
     else:
         tickers_all = [ticker_sym] + peers
         with st.spinner("Descargando datos de benchmarks..."):
@@ -345,13 +718,12 @@ with tab_bench:
                 use_container_width=True,
             )
 
-            # Gráfico P/E y ROE comparados
             st.markdown("#### P/E y ROE vs peers")
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
                 go.Bar(
                     x=df_bench["Ticker"],
-                    y=df_bench["pe"],
+                    y=df_bench["P/E"],
                     name="P/E",
                     marker_color=ACCENT_BLUE,
                 ),
@@ -360,7 +732,7 @@ with tab_bench:
             fig_comp.add_trace(
                 go.Scatter(
                     x=df_bench["Ticker"],
-                    y=df_bench["roe"] * 100,
+                    y=df_bench["ROE"] * 100,
                     name="ROE (%)",
                     mode="lines+markers",
                     line_color=ACCENT_GREEN,
@@ -376,10 +748,9 @@ with tab_bench:
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-# ========= TAB 5: CORRELACIONES =========
+# ==== TAB CORRELACIONES ====
 with tab_corr:
     st.subheader("Correlación de rentabilidades")
-
     corr_tickers = [t.strip().upper() for t in corr_tickers_text.split("\n") if t.strip()]
     if ticker_sym not in corr_tickers:
         corr_tickers.insert(0, ticker_sym)
@@ -423,7 +794,7 @@ with tab_corr:
         )
         st.plotly_chart(fig_cum, use_container_width=True)
 
-# ========= TAB 6: PRECIO =========
+# ==== TAB PRECIO ====
 with tab_price:
     st.subheader("Histórico de precio y volumen")
     if hist is None or hist.empty:
