@@ -551,7 +551,6 @@ with tab_rat:
         height=350,
     )
     st.plotly_chart(fig_radar, use_container_width=True)
-
 # ==== TAB VALORACIÓN ====
 with tab_val:
     st.subheader("Valoración intrínseca — todos los métodos")
@@ -605,7 +604,7 @@ with tab_val:
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
 
-        # Formatear valores numéricos
+        # Formatear valores numéricos como texto
         def fmt_val(v):
             return f"{v:.2f}" if pd.notna(v) else "N/A"
 
@@ -640,11 +639,50 @@ with tab_val:
         with col_leg4:
             st.markdown("🟢 DDM")
 
-        st.dataframe(
-            df_tabla,
-            use_container_width=True,
-            height=600,
+        # === Tabla con fondo oscuro usando Styler + st.table ===
+        styled_tabla = (
+            df_tabla.style
+            .set_properties(
+                **{
+                    "background-color": "#111827",
+                    "color": "#E5E7EB",
+                    "border": "1px solid #1F2937",
+                    "font-size": "13px",
+                }
+            )
+            .set_table_styles(
+                [
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#020617"),
+                            ("color", "#9CA3AF"),
+                            ("font-size", "11px"),
+                            ("text-transform", "uppercase"),
+                            ("letter-spacing", "0.06em"),
+                            ("border-bottom", "2px solid #1F2937"),
+                            ("padding", "6px 10px"),
+                        ],
+                    },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "5px 10px"),
+                            ("border-bottom", "1px solid #1F2937"),
+                        ],
+                    },
+                    {
+                        "selector": "tr:hover td",
+                        "props": [
+                            ("background-color", "#1F2937"),
+                        ],
+                    },
+                ]
+            )
         )
+
+        # Usamos st.table para respetar mejor el estilo en dark mode
+        st.table(styled_tabla)
 
         st.markdown("---")
 
@@ -725,6 +763,7 @@ with tab_val:
             height=max(400, len(df_val) * 22),
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+
 
 # ==== TAB BENCHMARKS ====
 with tab_bench:
