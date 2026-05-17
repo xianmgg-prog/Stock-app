@@ -1268,11 +1268,16 @@ if analyze_btn or selected_ticker:
                         outlinecolor=COLORS["border"],
                     ),
                 ))
+                _axis_corr = dict(
+                    gridcolor=COLORS["border"], gridwidth=0.5,
+                    linecolor=COLORS["border_accent"], tickcolor=COLORS["text_muted"],
+                    zerolinecolor=COLORS["border"],
+                    tickfont=dict(size=11, color=COLORS["text_secondary"]),
+                )
                 corr_fig.update_layout(base_layout(
                     height=max(280, 60 * len(all_tickers)),
-                    xaxis=dict(**_AXIS_STYLE, tickangle=-30,
-                               tickfont=dict(size=11, color=COLORS["text_secondary"])),
-                    yaxis=dict(**_AXIS_STYLE, tickfont=dict(size=11, color=COLORS["text_secondary"])),
+                    xaxis=dict(**_axis_corr, tickangle=-30),
+                    yaxis=_axis_corr,
                 ))
                 st.plotly_chart(corr_fig, use_container_width=True)
 
