@@ -93,52 +93,6 @@ st.markdown(
         color: {TEXT_SECONDARY};
         font-size: 0.75rem;
     }}
-    .val-table {{
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-    }}
-    .val-table th {{
-        text-align: left;
-        padding: 0.4rem 0.6rem;
-        border-bottom: 1px solid {BORDER};
-        color: {TEXT_SECONDARY};
-        font-weight: 500;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }}
-    .val-table td {{
-        padding: 0.35rem 0.6rem;
-        border-bottom: 1px solid rgba(31,41,55,0.6);
-    }}
-    .val-method {{
-        font-weight: 500;
-    }}
-    .val-num {{
-        font-family: "JetBrains Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        text-align: right;
-    }}
-    .margin-good {{
-        color: {ACCENT_GREEN};
-        font-weight: 600;
-        text-align: right;
-    }}
-    .margin-ok {{
-        color: {ACCENT_BLUE};
-        font-weight: 600;
-        text-align: right;
-    }}
-    .margin-fair {{
-        color: #EAB308;
-        font-weight: 600;
-        text-align: right;
-    }}
-    .margin-poor {{
-        color: {ACCENT_RED};
-        font-weight: 600;
-        text-align: right;
-    }}
     .bench-header {{
         font-size: 0.8rem;
         color: {TEXT_SECONDARY};
@@ -190,19 +144,6 @@ def fmt_large(x):
     else:
         s = f"{sign*v:.0f}"
     return s
-
-
-def margin_badge(upside_pct):
-    v = safe_float(upside_pct, None)
-    if v is None:
-        return "N/A", "margin-fair"
-    if v >= 30:
-        return f"+{v:.1f}%", "margin-good"
-    if v >= 10:
-        return f"+{v:.1f}%", "margin-ok"
-    if v >= -10:
-        return f"{v:.1f}%", "margin-fair"
-    return f"{v:.1f}%", "margin-poor"
 
 
 def search_ticker(query: str):
@@ -593,7 +534,7 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# ==== TAB VALORACIÓN ====
+# ==== TAB VALORACIÓN (SIN HTML) ====
 with tab_val:
     st.subheader("Valoración intrínseca por métodos")
     methods, current_price = compute_valuations(info)
@@ -601,9 +542,7 @@ with tab_val:
     if not methods:
         st.warning("No se pudo calcular ninguna valoración por falta de datos.")
     else:
-        rows_html = ""
-        filtered_methods = []
-
+        registros = []
         for m in methods:
             name = m["name"]
             val = m["value"]
@@ -618,43 +557,40 @@ with tab_val:
             if upside is not None and (upside < -80 or upside > 200):
                 continue
 
-            margin_str, css_class = margin_badge(upside)
-            filtered_methods.append((name, val, params, margin_str, css_class))
+            # Texto de margen de seguridad sencillo
+            if upside is None:
+                margen_txt = "N/A"
+            elif upside >= 30:
+                margen_txt = f"{upside:.1f}% (alto)"
+            elif upside >= 10:
+                margen_txt = f"{upside:.1f}% (bueno)"
+            elif upside >= -10:
+                margen_txt = f"{upside:.1f}% (neutral)"
+            else:
+                margen_txt = f"{upside:.1f}% (malo)"
 
-        if not filtered_methods:
+            registros.append(
+                {
+                    "Método": name,
+                    "Parámetros": params,
+                    "Valor intrínseco": f"{currency} {val:.2f}",
+                    "Precio mercado": f"{currency} {current_price:.2f}",
+                    "Margen seg.": margen_txt,
+                }
+            )
+
+        if not registros:
             st.info("Las valoraciones calculadas son extremas; se han ocultado por seguridad.")
         else:
-            for name, val, params, margin_str, css_class in filtered_methods:
-                rows_html += f"""
-                <tr>
-                  <td class="val-method">{name}</td>
-                  <td style="color:{TEXT_SECONDARY};font-size:10px;">{params}</td>
-                  <td class="val-num">{currency} {val:.2f}</td>
-                  <td class="val-num">{currency} {current_price:.2f}</td>
-                  <td class="{css_class}">{margin_str}</td>
-                </tr>
-                """
+            df_val_tabla = pd.DataFrame(registros)
+            st.dataframe(df_val_tabla, use_container_width=True)
 
-            table_html = f"""
-            <table class="val-table">
-              <thead>
-                <tr>
-                  <th>Método</th>
-                  <th>Parámetros</th>
-                  <th>Valor intrínseco</th>
-                  <th>Precio mercado</th>
-                  <th>Margen seg.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows_html}
-              </tbody>
-            </table>
-            """
-            st.markdown(table_html, unsafe_allow_html=True)
-
+            # Gráfico de barras
             df_val = pd.DataFrame(
-                {"Método": [m[0] for m in filtered_methods], "Valor": [m[1] for m in filtered_methods]}
+                {
+                    "Método": [r["Método"] for r in registros],
+                    "Valor": [float(r["Valor intrínseco"].split()[1]) for r in registros],
+                }
             )
             fig_bar = px.bar(
                 df_val,
