@@ -602,66 +602,80 @@ with tab_val:
         st.warning("No se pudo calcular ninguna valoración por falta de datos.")
     else:
         rows_html = ""
+        filtered_methods = []
+
         for m in methods:
             name = m["name"]
             val = m["value"]
             params = m["params"]
+
             if current_price:
                 upside = (val - current_price) / current_price * 100
             else:
                 upside = None
+
+            # Filtro: ocultar métodos extremadamente alejados del precio
+            if upside is not None and (upside < -80 or upside > 200):
+                continue
+
             margin_str, css_class = margin_badge(upside)
-            rows_html += f"""
-            <tr>
-              <td class="val-method">{name}</td>
-              <td style="color:{TEXT_SECONDARY};font-size:10px;">{params}</td>
-              <td class="val-num">{currency} {val:.2f}</td>
-              <td class="val-num">{currency} {current_price:.2f}</td>
-              <td class="{css_class}">{margin_str}</td>
-            </tr>
+            filtered_methods.append((name, val, params, margin_str, css_class))
+
+        if not filtered_methods:
+            st.info("Las valoraciones calculadas son extremas; se han ocultado por seguridad.")
+        else:
+            for name, val, params, margin_str, css_class in filtered_methods:
+                rows_html += f"""
+                <tr>
+                  <td class="val-method">{name}</td>
+                  <td style="color:{TEXT_SECONDARY};font-size:10px;">{params}</td>
+                  <td class="val-num">{currency} {val:.2f}</td>
+                  <td class="val-num">{currency} {current_price:.2f}</td>
+                  <td class="{css_class}">{margin_str}</td>
+                </tr>
+                """
+
+            table_html = f"""
+            <table class="val-table">
+              <thead>
+                <tr>
+                  <th>Método</th>
+                  <th>Parámetros</th>
+                  <th>Valor intrínseco</th>
+                  <th>Precio mercado</th>
+                  <th>Margen seg.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows_html}
+              </tbody>
+            </table>
             """
+            st.markdown(table_html, unsafe_allow_html=True)
 
-        table_html = f"""
-        <table class="val-table">
-          <thead>
-            <tr>
-              <th>Método</th>
-              <th>Parámetros</th>
-              <th>Valor intrínseco</th>
-              <th>Precio mercado</th>
-              <th>Margen seg.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows_html}
-          </tbody>
-        </table>
-        """
-        st.markdown(table_html, unsafe_allow_html=True)
-
-        df_val = pd.DataFrame(
-            {"Método": [m["name"] for m in methods], "Valor": [m["value"] for m in methods]}
-        )
-        fig_bar = px.bar(
-            df_val,
-            x="Método",
-            y="Valor",
-            title="Valor intrínseco por método vs precio actual",
-            color="Valor",
-            color_continuous_scale="Blues",
-        )
-        fig_bar.add_hline(
-            y=current_price,
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f"Precio: {current_price:.2f}",
-        )
-        fig_bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
+            df_val = pd.DataFrame(
+                {"Método": [m[0] for m in filtered_methods], "Valor": [m[1] for m in filtered_methods]}
+            )
+            fig_bar = px.bar(
+                df_val,
+                x="Método",
+                y="Valor",
+                title="Valor intrínseco por método vs precio actual",
+                color="Valor",
+                color_continuous_scale="Blues",
+            )
+            fig_bar.add_hline(
+                y=current_price,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Precio: {current_price:.2f}",
+            )
+            fig_bar.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                height=400,
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==== TAB BENCHMARKS ====
 with tab_bench:
