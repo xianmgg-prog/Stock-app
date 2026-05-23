@@ -833,47 +833,48 @@ with tab_bench:
                 df_bench.sort_values("Market Cap", ascending=False).index
             )
 
-            styled_bench = (df_view.style
-    .set_properties(
-        **{
-            "background-color": "#F4EFCF",  # Fondo de celda claro
-            "color": "#433F38",              # Texto oscuro
-            "border": "1px solid #EAE4CD",   # Borde suave
-            "font-size": "13px",
-        }
-    )  # Cierra .set_properties
-)  # Cierra el bloque principal styled_bench
+            styled_bench = (# Reordenamos el dataframe visual según el Market Cap
+            df_view = df_view.reindex(
+                df_bench.sort_values("Market Cap", ascending=False).index
+            )
+
+            # Aplicamos todos los estilos juntos en una sola variable limpia
+            styled_bench = (
                 df_view.style
-               # Busca los bloques .set_properties de tus tablas y actualízalos así:
-.set_properties(
-    **{
-        "background-color": "#F4EFCF",  # Fondo de celda claro
-        "color": "#433F38",             # Texto oscuro
-        "border": "1px solid #EAE4CD",   # Borde suave
-        "font-size": "13px",
-    })
-.set_table_styles(
-    [
-        {
-            "selector": "th",
-            "props": [
-                ("background-color", "#EAE4CD"), # Cabecera ligeramente más oscura
-                ("color", "#433F38"),
-                ("font-size", "11px"),
-                ("text-transform", "uppercase"),
-                ("letter-spacing", "0.06em"),
-                ("border-bottom", "2px solid #EAE4CD"),
-                ("padding", "6px 10px"),
-            ],
-        },
-        {
-            "selector": "tr:hover td",
-            "props": [
-                ("background-color", "#E0DAB6"), # Efecto hover armónico
-            ],
-        },
-    ]
-)
+                .set_properties(
+                    **{
+                        "background-color": "#F4EFCF",  # Fondo de celda claro
+                        "color": "#433F38",              # Texto oscuro
+                        "border": "1px solid #EAE4CD",   # Borde suave
+                        "font-size": "13px",
+                    }
+                )
+                .set_table_styles(
+                    [
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#EAE4CD"),  # Cabecera más oscura
+                                ("color", "#433F38"),
+                                ("font-size", "11px"),
+                                ("text-transform", "uppercase"),
+                                ("letter-spacing", "0.06em"),
+                                ("border-bottom", "2px solid #EAE4CD"),
+                                ("padding", "6px 10px"),
+                            ],
+                        },
+                        {
+                            "selector": "tr:hover td",
+                            "props": [
+                                ("background-color", "#E0DAB6"),  # Efecto hover armónico
+                            ],
+                        },
+                    ]
+                )
+            )
+
+            # ¡No olvides mostrar la tabla en Streamlit!
+            st.dataframe(styled_bench, use_container_width=True)
 
             st.table(styled_bench)
             st.markdown("---")
