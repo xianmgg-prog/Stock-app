@@ -833,7 +833,16 @@ with tab_bench:
                 df_bench.sort_values("Market Cap", ascending=False).index
             )
 
-            styled_bench = (
+            styled_bench = (df_view.style
+    .set_properties(
+        **{
+            "background-color": "#F4EFCF",  # Fondo de celda claro
+            "color": "#433F38",              # Texto oscuro
+            "border": "1px solid #EAE4CD",   # Borde suave
+            "font-size": "13px",
+        }
+    )  # Cierra .set_properties
+)  # Cierra el bloque principal styled_bench
                 df_view.style
                # Busca los bloques .set_properties de tus tablas y actualízalos así:
 .set_properties(
