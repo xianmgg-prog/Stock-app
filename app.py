@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
 import math
+from scipy.optimize import minimize
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
@@ -25,7 +26,7 @@ if "current_query" not in st.session_state:
     st.session_state.current_query = ""
 
 # =========================
-# COLORES
+# COLORES Y ESTILOS CSS
 # =========================
 ACCENT_BLUE = "#38BDF8"
 ACCENT_GREEN = "#22C55E"
@@ -99,7 +100,7 @@ st.markdown(
 )
 
 # =========================
-# HELPERS
+# HELPERS DE FORMATEO Y APIS
 # =========================
 def safe_float(x, default=None):
     if x is None:
@@ -177,7 +178,7 @@ def get_benchmark_list(info, main_ticker):
 
 
 # =========================
-# TODOS LOS MÉTODOS DE VALORACIÓN
+# MÉTODOS DE VALORACIÓN FINANCIERA
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -198,7 +199,7 @@ def compute_valuations(info, currency):
 
     def dcf_model(fcf0, g_high, g_low, r, label, calidad):
         if fcf0 is None or shares is None or shares <= 0 or r <= g_low:
-            return  # Evitamos r <= g_low para no romper la asíntota del modelo matemático
+            return  
         pv = 0.0
         for t in range(1, 6):
             pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
@@ -215,13 +216,12 @@ def compute_valuations(info, currency):
             "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
         })
 
-    # --- DCF variantes ---
+    # --- Variantes de Modelos DCF ---
     if fcf is not None:
         dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Agresivo", "Media")
         dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base",     "Alta")
         dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservador", "Alta")
 
-    # DCF con net income como proxy
     if net_income is not None and shares and shares > 0:
         dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto proxy)", "Media")
 
@@ -302,7 +302,7 @@ def compute_valuations(info, currency):
             "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
 
-    # --- DDM ---
+    # --- Dividend Discount Model (DDM) ---
     if div and div > 0:
         for g_div, r_div, label_div in [
             (0.02, 0.08, "DDM (g 2%, r 8%)"),
@@ -319,7 +319,7 @@ def compute_valuations(info, currency):
                     "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
                 })
 
-    # Añadir precio y upside
+    # Cálculo de Upside potencial
     for m in methods:
         m["Precio"] = price
         if price and price > 0:
@@ -332,7 +332,7 @@ def compute_valuations(info, currency):
 
 
 # =========================
-# HERO + BÚSQUEDA
+# INTERFAZ DE BÚSQUEDA (HERO)
 # =========================
 st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
@@ -341,14 +341,12 @@ col_search, col_btn = st.columns([4, 1])
 with col_search:
     query = st.text_input(
         "",
-        placeholder="🔎  Busca una empresa o ticker  (ej: Apple, AAPL, Stellantis, TEF.MC...)",
+        placeholder="🔎 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
         label_visibility="collapsed",
     )
-
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-# Manejo de cambios en el input de texto para limpiar sugerencias anteriores si cambia de búsqueda
 if query != st.session_state.current_query:
     st.session_state.current_query = query
 
@@ -361,7 +359,6 @@ if query:
     else:
         ticker_sym = query.strip().upper()
 
-# Al hacer click en analizar o si ya teníamos un ticker guardado, actualizamos el Session State
 if analyze_btn and ticker_sym:
     st.session_state.analyzed_ticker = ticker_sym
 
@@ -371,11 +368,11 @@ with st.expander("⚙️ Opciones de análisis", expanded=False):
         period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
     with op2:
         corr_tickers_input = st.text_input(
-            "Tickers para correlación (separados por comas)",
+            "Tickers para correlación y cartera (separados por comas)",
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
 
-# Cambiar la condición de parada para evaluar el Session State en lugar del botón directo
+# Pantalla de bienvenida / Control de parada
 if not st.session_state.analyzed_ticker:
     st.markdown("---")
     st.markdown(
@@ -394,11 +391,10 @@ if not st.session_state.analyzed_ticker:
     )
     st.stop()
 
-# Fijar el ticker desde el estado persistente
 active_ticker = st.session_state.analyzed_ticker
 
 # =========================
-# CARGA DE DATOS
+# EXTRACCIÓN GLOBAL DE DATOS
 # =========================
 with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
@@ -406,12 +402,12 @@ with st.spinner(f"Cargando datos de {active_ticker}..."):
         info  = stock.info
         hist  = stock.history(period=period)
     except Exception as e:
-        st.error(f"Error al obtener datos de {active_ticker}: {e}")
+        st.error(f"Error al obtener datos: {e}")
         st.stop()
 
 price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
 if price is None:
-    st.error(f"No se pudo obtener el precio de mercado para {active_ticker}. Verifica si el ticker es correcto o si cotiza en este momento.")
+    st.error("No se pudo obtener el precio de mercado. Verifica el ticker.")
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
@@ -464,14 +460,17 @@ for col, label, val in [
 
 st.markdown("")
 
+# Inicialización de la variable global de retornos para las pestañas de análisis matemático
+returns = None
+
 # =========================
-# TABS
+# CONSTRUCCIÓN DE PANEL DE PESTAÑAS
 # =========================
-tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price = st.tabs(
-    ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio"]
+tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
+    ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio", "Optimización de Cartera"]
 )
 
-# ==== TAB EMPRESA ====
+# ==== PESTAÑA 1: EMPRESA ====
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -498,7 +497,7 @@ with tab_emp:
                 unsafe_allow_html=True,
             )
 
-# ==== TAB RATIOS ====
+# ==== PESTAÑA 2: RATIOS ====
 with tab_rat:
     pe           = safe_float(info.get("trailingPE"))
     fwd_pe       = safe_float(info.get("forwardPE"))
@@ -570,13 +569,13 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# ==== TAB VALORACIÓN ====
+# ==== PESTAÑA 3: VALORACIÓN INTRÍNSECA ====
 with tab_val:
     st.subheader("Valoración intrínseca — todos los métodos")
     methods, current_price = compute_valuations(info, currency)
 
     if not methods:
-        st.warning("No se pudieron calcular valoraciones por falta de datos financieros clave en este activo (FCF, Beneficios o Múltiplos).")
+        st.warning("No se pudieron calcular valoraciones por falta de datos.")
     else:
         df_val = pd.DataFrame(methods)
         df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
@@ -772,12 +771,12 @@ with tab_val:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ==== TAB BENCHMARKS ====
+# ==== PESTAÑA 4: BENCHMARKS ====
 with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
     peers = get_benchmark_list(info, active_ticker)
     if not peers:
-        st.info("No hay benchmarks fijos definidos para este sector.")
+        st.info("No hay benchmarks definidos para este sector.")
     else:
         tickers_all = [active_ticker] + peers
         with st.spinner("Descargando datos de benchmarks..."):
@@ -799,7 +798,7 @@ with tab_bench:
                     continue
 
         if len(data) <= 1:
-            st.warning("No se pudieron cargar datos comparativos de los benchmarks.")
+            st.warning("No se pudieron cargar datos de benchmarks.")
         else:
             df_bench = pd.DataFrame.from_dict(data, orient="index")
             df_bench.index.name = "Ticker"
@@ -905,7 +904,7 @@ with tab_bench:
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-# ==== TAB CORRELACIONES ====
+# ==== PESTAÑA 5: CORRELACIONES ====
 with tab_corr:
     st.subheader("Correlación de rentabilidades")
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
@@ -916,7 +915,7 @@ with tab_corr:
         try:
             df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
             
-            # Gestión segura de MultiIndex en las columnas devueltas por yfinance
+            # Gestión segura de estructuras MultiIndex en las columnas
             if isinstance(df_download.columns, pd.MultiIndex):
                 prices = df_download.xs('Close', level=0, axis=1, drop_level=True)
             else:
@@ -924,7 +923,7 @@ with tab_corr:
                 
             returns = prices.pct_change().dropna()
         except Exception as e:
-            st.error(f"No se pudo calcular la matriz de retornos: {e}")
+            st.error(f"No se pudo descargar precios: {e}")
             returns = None
 
     if returns is not None and not returns.empty:
@@ -944,7 +943,7 @@ with tab_corr:
         )
         st.plotly_chart(fig_cum, use_container_width=True)
 
-# ==== TAB PRECIO ====
+# ==== PESTAÑA 6: PRECIO ====
 with tab_price:
     st.subheader("Histórico de precio y volumen")
     if hist is None or hist.empty:
@@ -966,3 +965,83 @@ with tab_price:
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         )
         st.plotly_chart(fig_price, use_container_width=True)
+
+# ==== PESTAÑA 7: OPTIMIZACIÓN DE CARTERA (MARKOWITZ) ====
+with tab_port:
+    st.subheader("Optimización de Cartera de Markowitz")
+    
+    if returns is not None and not returns.empty:
+        st.markdown("Configura las variables para optimizar tu selección actual de activos:")
+        
+        c_opt1, c_opt2 = st.columns(2)
+        with c_opt1:
+            objetivo = st.selectbox(
+                "Objetivo del Optimizador",
+                ["Maximizar Ratio Sharpe (Eficiencia)", "Minimizar Varianza (Mínimo Riesgo)"]
+            )
+        with c_opt2:
+            rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
+
+        # Anualización de datos estadísticos (252 días hábiles)
+        num_activos = len(corr_tickers)
+        rendimientos_medios = returns.mean() * 252
+        matriz_covarianza = returns.cov() * 252
+
+        def estadisticas_cartera(weights):
+            weights = np.array(weights)
+            r_cartera = np.sum(rendimientos_medios * weights)
+            vol_cartera = np.sqrt(np.dot(weights.T, np.dot(matriz_covarianza, weights)))
+            sharpe = (r_cartera - rf_rate) / vol_cartera if vol_cartera > 0 else 0
+            return r_cartera, vol_cartera, sharpe
+
+        def funcion_a_minimizar(weights):
+            if objetivo == "Maximizar Ratio Sharpe (Eficiencia)":
+                return -estadisticas_cartera(weights)[2]
+            else:
+                return estadisticas_cartera(weights)[1]
+
+        # Restricciones matemáticas (Suma de pesos = 1.0, Sin posiciones cortas)
+        restricciones = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+        limites = tuple((0, 1) for _ in range(num_activos))
+        pesos_iniciales = num_activos * [1.0 / num_activos]
+
+        resultado_opt = minimize(
+            funcion_a_minimizar, 
+            pesos_iniciales, 
+            method='SLSQP', 
+            bounds=limites, 
+            constraints=restricciones
+        )
+
+        if resultado_opt.success:
+            pesos_optimos = resultado_opt.x
+            r_opt, vol_opt, sharpe_opt = estadisticas_cartera(pesos_optimos)
+
+            st.markdown("#### Métricas de la Cartera Óptima")
+            m_p1, m_p2, m_p3 = st.columns(3)
+            m_p1.metric("Retorno Esperado Anual", f"{r_opt*100:.2f}%")
+            m_p2.metric("Volatilidad de la Cartera", f"{vol_opt*100:.2f}%")
+            m_p3.metric("Ratio Sharpe Resultante", f"{sharpe_opt:.2f}")
+
+            df_pesos = pd.DataFrame({
+                "Activo": corr_tickers,
+                "Ponderación Óptima (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
+                "Fracción Decimal": np.round(pesos_optimos, 4)
+            }).sort_values(by="Fracción Decimal", ascending=False)
+
+            st.dataframe(df_pesos, use_container_width=True, hide_index=True)
+
+            fig_pie = px.pie(
+                df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
+                values="Fracción Decimal", 
+                names="Activo",
+                title=f"Distribución recomendada de capital ({objetivo})",
+                color_discrete_sequence=px.colors.sequential.Skycrest
+            )
+            fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_pie, use_container_width=True)
+            
+        else:
+            st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
+    else:
+        st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
