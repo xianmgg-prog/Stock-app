@@ -27,6 +27,7 @@ ACCENT_OCHRE   = "#B58900"
 TEXT_PRIMARY   = "#433F38"
 TEXT_SECONDARY = "#7A756B"
 CARD_BG        = "#F4EFCF"
+CARD_BG_ALT    = "#F7F1CF"
 BORDER         = "#EAE4CD"
 BG_MAIN        = "#FDF6E3"
 
@@ -89,44 +90,6 @@ css = f"""
 .stTabs [aria-selected="true"] {{
     color:{TEXT_PRIMARY} !important;
     border-bottom-color:{ACCENT_BLUE} !important;
-}}
-
-/* === TABLAS PERSONALIZADAS — NO BLANCAS GENÉRICAS === */
-[data-testid="stDataFrame"] {{
-    border:1px solid {BORDER};
-    border-radius:8px;
-    overflow:hidden;
-    background:{CARD_BG};
-}}
-[data-testid="stDataFrame"] > div {{
-    background:{CARD_BG};
-}}
-[data-testid="stDataFrame"] table {{
-    border-spacing:0;
-    background:{CARD_BG};
-}}
-[data-testid="stDataFrame"] thead tr th {{
-    background-color:{BORDER} !important;
-    color:{TEXT_PRIMARY} !important;
-    font-size:11px !important;
-    text-transform:uppercase !important;
-    letter-spacing:0.06em !important;
-    border-bottom:1px solid {BORDER} !important;
-}}
-[data-testid="stDataFrame"] tbody tr [role="gridcell"] {{
-    background-color:{CARD_BG} !important;
-    color:{TEXT_PRIMARY} !important;
-    font-size:13px !important;
-    border-bottom:1px solid {BORDER} !important;
-}}
-[data-testid="stDataFrame"] tbody tr:nth-child(even) [role="gridcell"] {{
-    background-color:#f7f1cf !important;
-}}
-[data-testid="stDataFrame"] [role="row"]:hover [role="gridcell"] {{
-    background-color:#E0DAB6 !important;
-}}
-[data-testid="stDataFrame"] [data-testid="stVerticalBlock"] > div {{
-    background:{CARD_BG};
 }}
 </style>
 """
@@ -343,6 +306,39 @@ def compute_valuations(info, currency):
             m["Upside %"] = None
 
     return methods, price
+
+# Helper para estilizar tablas con fondo crema usando Styler
+def style_df(df: pd.DataFrame) -> pd.io.formats.style.Styler:
+    styler = df.style.set_properties(
+        **{
+            "background-color": CARD_BG,
+            "color": TEXT_PRIMARY,
+            "border-color": BORDER,
+            "border-width": "1px",
+            "border-style": "solid",
+            "font-size": "13px",
+        }
+    )
+    # rayado filas pares
+    styler = styler.set_table_styles(
+        [
+            {
+                "selector": "tbody tr:nth-child(even)",
+                "props": [("background-color", CARD_BG_ALT)],
+            },
+            {
+                "selector": "thead th",
+                "props": [
+                    ("background-color", BORDER),
+                    ("color", TEXT_PRIMARY),
+                    ("font-size", "11px"),
+                    ("text-transform", "uppercase"),
+                    ("letter-spacing", "0.06em"),
+                ],
+            },
+        ]
+    )
+    return styler
 
 # =========================
 # HERO / BUSCADOR
@@ -626,7 +622,7 @@ with tab_val:
             "Supuestos":        df_val["Supuestos"],
         }).reindex(df_val.sort_values("Upside %", ascending=False).index)
 
-        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+        st.dataframe(style_df(df_tabla), use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
@@ -755,7 +751,7 @@ with tab_bench:
             df_view.insert(3, "PE flag", df_view["P/E"].apply(pe_flag))
             df_view.insert(7, "ROE flag", df_view["ROE"].apply(roe_flag))
 
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
+            st.dataframe(style_df(df_view), use_container_width=True, hide_index=True)
 
             st.markdown("---")
 
@@ -891,7 +887,7 @@ with tab_port:
                 "Fraccion Decimal": np.round(pesos_optimos, 4),
             }).sort_values(by="Fraccion Decimal", ascending=False)
 
-            st.dataframe(df_pesos, use_container_width=True, hide_index=True)
+            st.dataframe(style_df(df_pesos), use_container_width=True, hide_index=True)
 
             fig_pie = px.pie(
                 df_pesos[df_pesos["Fraccion Decimal"] > 0.001],
