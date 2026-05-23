@@ -344,8 +344,11 @@ with col_search:
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-if query != st.session_state.current_query:
-    st.session_state.current_query = query
+# ==========================================
+# COMPROBACIÓN SEGURA DE LA CONSULTA (CON .get)
+# ==========================================
+if query != st.session_state.get("current_query", ""):
+    st.session_state["current_query"] = query
 
 ticker_sym = ""
 if query:
@@ -651,44 +654,37 @@ with tab_val:
 
         styled_tabla = (
             df_tabla.style
-            .set_properties(
-                **{
-                    "background-color": "#111827",
-                    "color": "#E5E7EB",
-                    "border": "1px solid #1F2937",
-                    "font-size": "13px",
-                }
-            )
-            .set_table_styles(
-                [
-                    {
-                        "selector": "th",
-                        "props": [
-                            ("background-color", "#020617"),
-                            ("color", "#9CA3AF"),
-                            ("font-size", "11px"),
-                            ("text-transform", "uppercase"),
-                            ("letter-spacing", "0.06em"),
-                            ("border-bottom", "2px solid #1F2937"),
-                            ("padding", "6px 10px"),
-                        ],
-                    },
-                    {
-                        "selector": "td",
-                        "props": [
-                            ("padding", "5px 10px"),
-                            ("border-bottom", "1px solid #1F2937"),
-                        ],
-                    },
-                    {
-                        "selector": "tr:hover td",
-                        "props": [
-                            ("background-color", "#1F2937"),
-                        ],
-                    },
-                ]
-            )
-        )
+            # Busca los bloques .set_properties de tus tablas y actualízalos así:
+.set_properties(
+    **{
+        "background-color": "#F4EFCF",  # Fondo de celda claro
+        "color": "#433F38",             # Texto oscuro
+        "border": "1px solid #EAE4CD",   # Borde suave
+        "font-size": "13px",
+    }
+)
+.set_table_styles(
+    [
+        {
+            "selector": "th",
+            "props": [
+                ("background-color", "#EAE4CD"), # Cabecera ligeramente más oscura
+                ("color", "#433F38"),
+                ("font-size", "11px"),
+                ("text-transform", "uppercase"),
+                ("letter-spacing", "0.06em"),
+                ("border-bottom", "2px solid #EAE4CD"),
+                ("padding", "6px 10px"),
+            ],
+        },
+        {
+            "selector": "tr:hover td",
+            "props": [
+                ("background-color", "#E0DAB6"), # Efecto hover armónico
+            ],
+        },
+    ]
+)
 
         st.table(styled_tabla)
         st.markdown("---")
@@ -830,44 +826,37 @@ with tab_bench:
 
             styled_bench = (
                 df_view.style
-                .set_properties(
-                    **{
-                        "background-color": "#111827",
-                        "color": "#E5E7EB",
-                        "border": "1px solid #1F2937",
-                        "font-size": "13px",
-                    }
-                )
-                .set_table_styles(
-                    [
-                        {
-                            "selector": "th",
-                            "props": [
-                                ("background-color", "#020617"),
-                                ("color", "#9CA3AF"),
-                                ("font-size", "11px"),
-                                ("text-transform", "uppercase"),
-                                ("letter-spacing", "0.06em"),
-                                ("border-bottom", "2px solid #1F2937"),
-                                ("padding", "6px 10px"),
-                            ],
-                        },
-                        {
-                            "selector": "td",
-                            "props": [
-                                ("padding", "5px 10px"),
-                                ("border-bottom", "1px solid #1F2937"),
-                            ],
-                        },
-                        {
-                            "selector": "tr:hover td",
-                            "props": [
-                                ("background-color", "#1F2937"),
-                            ],
-                        },
-                    ]
-                )
-            )
+               # Busca los bloques .set_properties de tus tablas y actualízalos así:
+.set_properties(
+    **{
+        "background-color": "#F4EFCF",  # Fondo de celda claro
+        "color": "#433F38",             # Texto oscuro
+        "border": "1px solid #EAE4CD",   # Borde suave
+        "font-size": "13px",
+    }
+)
+.set_table_styles(
+    [
+        {
+            "selector": "th",
+            "props": [
+                ("background-color", "#EAE4CD"), # Cabecera ligeramente más oscura
+                ("color", "#433F38"),
+                ("font-size", "11px"),
+                ("text-transform", "uppercase"),
+                ("letter-spacing", "0.06em"),
+                ("border-bottom", "2px solid #EAE4CD"),
+                ("padding", "6px 10px"),
+            ],
+        },
+        {
+            "selector": "tr:hover td",
+            "props": [
+                ("background-color", "#E0DAB6"), # Efecto hover armónico
+            ],
+        },
+    ]
+)
 
             st.table(styled_bench)
             st.markdown("---")
