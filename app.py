@@ -10,31 +10,17 @@ import math
 from scipy.optimize import minimize
 
 # =========================
-# CONFIGURACIÓN DE PÁGINA
+# CONFIGURACIÓN DE COLORES (PALETA VS CODE LIGHT)
 # =========================
-st.set_page_config(
-    page_title="Equity Terminal — Value Investing",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# Inicializar estados de sesión para evitar reinicios de pantalla involuntarios
-if "analyzed_ticker" not in st.session_state:
-    st.session_state.analyzed_ticker = None
-if "current_query" not in st.session_state:
-    st.session_state.current_query = ""
-
-# =========================
-# COLORES Y ESTILOS CSS
-# =========================
-ACCENT_BLUE = "#38BDF8"
-ACCENT_GREEN = "#22C55E"
-ACCENT_RED = "#EF4444"
-TEXT_PRIMARY = "#E5E7EB"
-TEXT_SECONDARY = "#9CA3AF"
-CARD_BG = "#111827"
-BORDER = "#1F2937"
+ACCENT_BLUE = "#268BD2"       # Azul de palabras clave / Selección
+ACCENT_GREEN = "#2AA198"      # Verde azulado armónico para subidas
+ACCENT_RED = "#D30102"        # Rojo suave para bajadas
+ACCENT_OCHRE = "#B58900"      # Ocre de las alertas de VS Code
+TEXT_PRIMARY = "#433F38"      # Texto principal oscuro orgánico
+TEXT_SECONDARY = "#7A756B"    # Texto secundario/Muted
+CARD_BG = "#F4EFCF"           # Fondo de tarjetas (igual al sidebar de tu captura)
+BORDER = "#EAE4CD"            # Líneas divisorias
+BG_MAIN = "#FDF6E3"           # Fondo general del editor
 
 st.markdown(
     f"""
@@ -46,7 +32,7 @@ st.markdown(
         max-width: 1300px;
     }}
     .stApp {{
-        background: radial-gradient(circle at top left, #111827 0, #020617 55%);
+        background-color: {BG_MAIN};
         color: {TEXT_PRIMARY};
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     }}
@@ -55,7 +41,8 @@ st.markdown(
         font-weight: 800;
         letter-spacing: 0.03em;
         text-align: center;
-        background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_GREEN});
+        /* Degradado basado en el azul y ocre de tu tema */
+        background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_OCHRE});
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
@@ -70,10 +57,11 @@ st.markdown(
     }}
     .metric-card {{
         background: {CARD_BG};
-        border-radius: 10px;
+        border-radius: 8px;
         padding: 0.8rem 1rem;
         border: 1px solid {BORDER};
         margin-bottom: 0.4rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     .metric-label {{
         color: {TEXT_SECONDARY};
@@ -85,20 +73,29 @@ st.markdown(
     .metric-value {{
         font-size: 1.1rem;
         font-weight: 600;
+        color: {TEXT_PRIMARY};
     }}
     .metric-sub {{
         color: {TEXT_SECONDARY};
         font-size: 0.75rem;
     }}
+    /* Ajuste de pestañas para que contrasten con el fondo crema */
     .stTabs [data-baseweb="tab"] {{
         font-size: 0.9rem;
         padding: 0.75rem 1.25rem;
+        color: {TEXT_SECONDARY};
+    }}
+    .stTabs [data-baseweb="tab"]:hover {{
+        color: {ACCENT_BLUE};
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: {TEXT_PRIMARY} !important;
+        border-bottom-color: {ACCENT_BLUE} !important;
     }}
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 # =========================
 # HELPERS DE FORMATEO Y APIS
 # =========================
