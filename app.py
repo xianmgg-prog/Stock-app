@@ -652,41 +652,50 @@ with tab_val:
         with col_leg4:
             st.markdown("🟢 DDM")
 
-        styled_tabla = (
-            df_tabla.style
-            # Busca los bloques .set_properties de tus tablas y actualízalos así:
-.set_properties(
-    **{
-        "background-color": "#F4EFCF",  # Fondo de celda claro
-        "color": "#433F38",             # Texto oscuro
-        "border": "1px solid #EAE4CD",   # Borde suave
-        "font-size": "13px",
-    }
-)
-.set_table_styles(
-    [
-        {
-            "selector": "th",
-            "props": [
-                ("background-color", "#EAE4CD"), # Cabecera ligeramente más oscura
-                ("color", "#433F38"),
-                ("font-size", "11px"),
-                ("text-transform", "uppercase"),
-                ("letter-spacing", "0.06em"),
-                ("border-bottom", "2px solid #EAE4CD"),
-                ("padding", "6px 10px"),
-            ],
-        },
-        {
-            "selector": "tr:hover td",
-            "props": [
-                ("background-color", "#E0DAB6"), # Efecto hover armónico
-            ],
-        },
-    ]
-)
+        # === TABLA CORREGIDA CON LA PALETA CLARA ===
+            styled_tabla = (
+                df_tabla.style
+                .set_properties(
+                    **{
+                        "background-color": "#F4EFCF",  # Fondo crema suave
+                        "color": "#433F38",             # Texto oscuro orgánico
+                        "border": "1px solid #EAE4CD",   # Borde suave
+                        "font-size": "13px",
+                    }
+                )
+                .set_table_styles(
+                    [
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#EAE4CD"), # Cabecera sutilmente más oscura
+                                ("color", "#433F38"),
+                                ("font-size", "11px"),
+                                ("text-transform", "uppercase"),
+                                ("letter-spacing", "0.06em"),
+                                ("border-bottom", "2px solid #EAE4CD"),
+                                ("padding", "6px 10px"),
+                            ],
+                        },
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("padding", "5px 10px"),
+                                ("border-bottom", "1px solid #EAE4CD"),
+                            ],
+                        },
+                        {
+                            "selector": "tr:hover td",
+                            "props": [
+                                ("background-color", "#E0DAB6"), # Efecto hover del tema
+                            ],
+                        },
+                    ]
+                )
+            )
 
-        st.table(styled_tabla)
+            # Renderizar la tabla en la interfaz
+            st.table(styled_tabla)
         st.markdown("---")
 
         upsides = df_val["Upside %"].dropna()
