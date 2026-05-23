@@ -1046,6 +1046,6 @@ fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)
 st.plotly_chart(fig_pie, use_container_width=True)
             
     else:
-            st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
+        st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
     else:
         st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
