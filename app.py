@@ -842,8 +842,7 @@ with tab_bench:
         "color": "#433F38",             # Texto oscuro
         "border": "1px solid #EAE4CD",   # Borde suave
         "font-size": "13px",
-    }
-)
+    })
 .set_table_styles(
     [
         {
