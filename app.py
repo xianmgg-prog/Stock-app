@@ -37,7 +37,6 @@ TEXT_PRIMARY = "#E5E7EB"
 TEXT_SECONDARY = "#9CA3AF"
 CARD_BG = "#111827"
 BORDER = "#1F2937"
-BG = "#020617"
 
 st.markdown(
     f"""
@@ -223,25 +222,39 @@ def score_method(upside, calidad):
     }
     return f"{'★'*base}{'☆'*(5-base)} · {labels[base]}"
 
-def get_news(api_key, active_ticker, company_name):
-    hoy = dt.date.today().isoformat()
-    consulta_empresa = f'"{active_ticker}" OR "{company_name}"'
-    consulta_mercado = (
-        '"stock market" OR "financial markets" OR inflation OR "interest rates" '
-        'OR "S&P 500" OR Nasdaq OR "bond yields" OR recession OR Federal Reserve'
-    )
-    query_total = f"({consulta_empresa}) OR ({consulta_mercado})"
+def get_company_news(api_key, active_ticker, company_name):
+    desde = (dt.datetime.utcnow() - dt.timedelta(days=3)).strftime("%Y-%m-%d")
+    query = f'"{active_ticker}" OR "{company_name}"'
 
     params = {
-        "q": query_total,
-        "from": hoy,
+        "q": query,
+        "from": desde,
         "sortBy": "publishedAt",
-        "pageSize": 20,
+        "pageSize": 10,
         "apiKey": api_key,
     }
 
     try:
         resp = requests.get("https://newsapi.org/v2/everything", params=params, timeout=15)
+        data = resp.json()
+        if data.get("status") == "ok":
+            return data.get("articles", [])
+        return []
+    except Exception:
+        return []
+
+def get_market_news(api_key):
+    try:
+        resp = requests.get(
+            "https://newsapi.org/v2/top-headlines",
+            params={
+                "country": "us",
+                "category": "business",
+                "pageSize": 10,
+                "apiKey": api_key,
+            },
+            timeout=15,
+        )
         data = resp.json()
         if data.get("status") == "ok":
             return data.get("articles", [])
@@ -460,8 +473,8 @@ active_ticker = st.session_state.analyzed_ticker
 with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
         stock = yf.Ticker(active_ticker)
-        info  = stock.info
-        hist  = stock.history(period=period)
+        info = stock.info
+        hist = stock.history(period=period)
     except Exception as e:
         st.error(f"Error al obtener datos: {e}")
         st.stop()
@@ -472,7 +485,7 @@ if price is None:
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
-sector   = info.get("sector", "N/D")
+sector = info.get("sector", "N/D")
 industry = info.get("industry", "N/D")
 currency = info.get("currency", "USD")
 
@@ -966,32 +979,49 @@ with tab_port:
 
 # ==== NOTICIAS ====
 with tab_news:
-    st.subheader("Noticias relevantes del día")
+    st.subheader("Noticias relevantes")
+
     api_key = st.secrets.get("NEWS_API_KEY", None)
 
     if not api_key:
         st.warning("No se ha configurado la clave NEWS_API_KEY en Secrets.")
     else:
         with st.spinner("Cargando noticias..."):
-            articles = get_news(api_key, active_ticker, company_name)
+            noticias_empresa = get_company_news(api_key, active_ticker, company_name)
+            noticias_mercado = get_market_news(api_key)
 
-        if not articles:
-            st.info("No se encontraron noticias relevantes para hoy.")
-        else:
-            st.markdown(
-                f"Se muestran noticias sobre **{company_name}** y también noticias generales de mercado del día."
+        if not noticias_empresa and not noticias_mercado:
+            st.info(
+                "No se han encontrado noticias con la configuración actual. "
+                "Esto puede ocurrir por el retraso de 24 horas del plan gratuito de NewsAPI."
             )
-            st.markdown("---")
+        else:
+            if noticias_empresa:
+                st.markdown("### Noticias de la empresa")
+                for art in noticias_empresa:
+                    titulo = traducir_a_es(art.get("title", "Sin título"))
+                    fuente = art.get("source", {}).get("name", "Fuente desconocida")
+                    fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
+                    descripcion = art.get("description") or art.get("content") or "Sin resumen disponible."
+                    descripcion = traducir_a_es(descripcion)
+                    url = art.get("url")
 
-            for art in articles:
-                titulo = art.get("title", "Sin título")
-                fuente = art.get("source", {}).get("name", "Fuente desconocida")
-                fecha = art.get("publishedAt", "")[:16].replace("T", " ")
-                descripcion = art.get("description") or art.get("content") or "Sin resumen disponible."
-                descripcion = traducir_a_es(descripcion)
-                url = art.get("url")
+                    with st.expander(f"{titulo} · {fuente} · {fecha}"):
+                        st.write(descripcion)
+                        if url:
+                            st.markdown(f"[Leer noticia completa]({url})")
 
-                with st.expander(f"{titulo} · {fuente} · {fecha}"):
-                    st.write(descripcion)
-                    if url:
-                        st.markdown(f"[Leer noticia completa]({url})")
+            if noticias_mercado:
+                st.markdown("### Noticias generales de mercado")
+                for art in noticias_mercado:
+                    titulo = traducir_a_es(art.get("title", "Sin título"))
+                    fuente = art.get("source", {}).get("name", "Fuente desconocida")
+                    fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
+                    descripcion = art.get("description") or art.get("content") or "Sin resumen disponible."
+                    descripcion = traducir_a_es(descripcion)
+                    url = art.get("url")
+
+                    with st.expander(f"{titulo} · {fuente} · {fecha}"):
+                        st.write(descripcion)
+                        if url:
+                            st.markdown(f"[Leer noticia completa]({url})")
