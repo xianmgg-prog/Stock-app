@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 import requests
 import math
 from scipy.optimize import minimize
-from deep_translator import GoogleTranslator  # NUEVO
+from deep_translator import GoogleTranslator
 
 # =========================
 # ESTADO INICIAL
@@ -115,13 +115,13 @@ def safe_float(x, default=None):
 def fmt_num(x, decimals=2, suffix=""):
     v = safe_float(x, None)
     if v is None:
-        return "N/A"
+        return "N/D"
     return f"{v:.{decimals}f}{suffix}"
 
 def fmt_large(x):
     v = safe_float(x, None)
     if v is None:
-        return "N/A"
+        return "N/D"
     sign = -1 if v < 0 else 1
     v = abs(v)
     if v >= 1e12:
@@ -158,7 +158,7 @@ DEFAULT_BENCHMARKS = {
     "Technology":             ["AAPL", "MSFT", "GOOGL", "META", "AMZN"],
     "Communication Services": ["GOOGL", "META", "NFLX", "DIS"],
     "Financial Services":     ["JPM", "BAC", "C", "GS"],
-    "Consumer Cíclical":      ["AMZN", "TSLA", "HD", "MCD"],
+    "Consumer Cyclical":      ["AMZN", "TSLA", "HD", "MCD"],
     "Energy":                 ["XOM", "CVX", "BP", "TOT"],
 }
 
@@ -168,15 +168,12 @@ def get_benchmark_list(info, main_ticker):
     peers  = [p for p in peers if p.upper() != main_ticker.upper()]
     return peers[:4]
 
-# ===== TRADUCTOR =====
 def traducir_a_es(texto: str) -> str:
     if not texto:
         return ""
     try:
-        # auto-detecta idioma y traduce a español
         return GoogleTranslator(source="auto", target="es").translate(texto)
     except Exception:
-        # si falla, devolvemos el original para no romper nada
         return texto
 
 # =========================
@@ -252,11 +249,11 @@ def compute_valuations(info, currency):
     if eps_use and eps_use > 0:
         for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
             methods.append({
-                "Metodo":    f"P/E {mult}x",
+                "Metodo":    f"PER objetivo {mult}x",
                 "Tipo":      "Múltiplo",
                 "Calidad":   cal,
                 "Valor":     eps_use * mult,
-                "Supuestos": f"EPS={eps_use:.2f}, múltiplo={mult}x",
+                "Supuestos": f"EPS={eps_use:.2f}, PER={mult}x",
             })
 
     if revenue is not None and shares and shares > 0:
@@ -285,14 +282,14 @@ def compute_valuations(info, currency):
             "Tipo":      "Mixto",
             "Calidad":   "Alta",
             "Valor":     math.sqrt(22.5 * eps_use * bvps),
-            "Supuestos": f"sqrt(22.5 × EPS {eps_use:.2f} × VCPS {bvps:.2f})",
+            "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × VCPS {bvps:.2f})",
         })
         methods.append({
             "Metodo":    "Graham ajustado 15x",
             "Tipo":      "Mixto",
             "Calidad":   "Media",
             "Valor":     math.sqrt(15 * eps_use * bvps),
-            "Supuestos": f"sqrt(15 × EPS {eps_use:.2f} × VCPS {bvps:.2f})",
+            "Supuestos": f"√(15 × EPS {eps_use:.2f} × VCPS {bvps:.2f})",
         })
 
     if div and div > 0:
@@ -429,8 +426,8 @@ if price is None:
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
-sector       = info.get("sector",   "N/A")
-industry     = info.get("industry", "N/A")
+sector       = info.get("sector",   "N/D")
+industry     = info.get("industry", "N/D")
 currency     = info.get("currency", "USD")
 
 prev_close = safe_float(info.get("previousClose"))
@@ -525,9 +522,9 @@ with tab_rat:
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("**Valoración de mercado**")
-        st.write(f"PER (últimos 12m): **{fmt_num(pe)}**")
+        st.write(f"PER (últimos 12 meses): **{fmt_num(pe)}**")
         st.write(f"PER (estimado): **{fmt_num(fwd_pe)}**")
-        st.write(f"P/VC (precio/valor contable): **{fmt_num(pb)}**")
+        st.write(f"P/Valor contable: **{fmt_num(pb)}**")
         st.write(f"P/Ventas: **{fmt_num(ps)}**")
     with col2:
         st.markdown("**Rentabilidad**")
@@ -542,6 +539,346 @@ with tab_rat:
         st.write(f"Prueba ácida: **{fmt_num(quick_ratio)}**")
         st.write(f"Rentabilidad por dividendo: **{fmt_num(dividend_yield*100 if dividend_yield else None, 2, '%')}**")
 
-# … (resto de pestañas igual que en el mensaje anterior:
-# Valoración con Score y expanders, Benchmarks, Correlaciones, Precio, Optimización)
-# Copia y pega debajo exactamente el bloque que ya tienes funcionando.
+# ---- VALORACIÓN ----
+with tab_val:
+    st.subheader("Valoración intrínseca — todos los métodos")
+    methods, current_price = compute_valuations(info, currency)
+
+    if not methods:
+        st.warning("No se pudieron calcular valoraciones por falta de datos.")
+    else:
+        df_val = pd.DataFrame(methods)
+
+        def rango_upside(u):
+            if pd.isna(u):  return "N/D"
+            if u >= 40:     return "Muy infravalorada"
+            if u >= 20:     return "Infravalorada"
+            if u >= -10:    return "En línea con el precio"
+            if u >= -30:    return "Sobrevalorada"
+            return "Muy sobrevalorada"
+
+        def score_row(row):
+            u   = row["Upside %"]
+            cal = row["Calidad"]
+            if pd.isna(u):
+                num = 2
+            elif u >= 40:
+                num = 5
+            elif u >= 20:
+                num = 4
+            elif u >= 0:
+                num = 3
+            elif u >= -20:
+                num = 2
+            else:
+                num = 1
+
+            if cal == "Alta":
+                num = min(num + 1, 5)
+            elif cal == "Baja":
+                num = max(num - 1, 1)
+
+            label_map = {
+                5: "Convicción muy alta",
+                4: "Convicción alta",
+                3: "Neutral",
+                2: "Débil",
+                1: "Muy débil",
+            }
+            return f"{'★'*num}{'☆'*(5-num)} · {label_map[num]}"
+
+        def flag_upside(u):
+            if pd.isna(u):
+                return "·"
+            if u >= 20:
+                return "🟢"
+            if u >= 0:
+                return "⚪"
+            if u >= -20:
+                return "🟠"
+            return "🔴"
+
+        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
+        df_val["Score"]          = df_val.apply(score_row, axis=1)
+
+        df_tabla = pd.DataFrame({
+            "Método":           df_val["Metodo"],
+            "Tipo":             df_val["Tipo"],
+            "Score":            df_val["Score"],
+            "Flag":             df_val["Upside %"].apply(flag_upside),
+            "Upside (%)":       df_val["Upside %"].apply(lambda u: f"{u:+.1f}%" if pd.notna(u) else "N/D"),
+            "Valor intrínseco": df_val["Valor"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/D"),
+            "Precio actual":    df_val["Precio"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/D"),
+            "Calidad":          df_val["Calidad"],
+            "Interpretación":   df_val["Interpretación"],
+            "Supuestos":        df_val["Supuestos"],
+        }).reindex(df_val.sort_values("Upside %", ascending=False).index)
+
+        st.dataframe(style_df(df_tabla), use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        upsides = df_val["Upside %"].dropna()
+        m1, m2, m3, m4 = st.columns(4)
+        for col, label, val in [
+            (m1, "Métodos calculados", str(len(df_val))),
+            (m2, "Upside mediano",     f"{upsides.median():+.1f}%" if len(upsides) else "N/D"),
+            (m3, "Upside medio",       f"{upsides.mean():+.1f}%"   if len(upsides) else "N/D"),
+            (m4, "Rango de upside",    f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/D"),
+        ]:
+            with col:
+                st.markdown(
+                    f'<div class="metric-card"><div class="metric-label">{label}</div>'
+                    f'<div class="metric-value">{val}</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("---")
+
+        COLOR_MAP = {"DCF": ACCENT_BLUE, "Múltiplo": "#A78BFA", "Mixto": ACCENT_OCHRE, "DDM": ACCENT_GREEN}
+
+        fig_val = px.strip(
+            df_val, x="Upside %", y="Tipo", color="Tipo",
+            hover_data=["Metodo", "Valor", "Supuestos"],
+            title="Distribución de upside por tipo de método",
+            color_discrete_map=COLOR_MAP,
+        )
+        fig_val.add_vline(x=0,  line_dash="dash", line_color=TEXT_PRIMARY, opacity=0.4)
+        fig_val.add_vline(x=30, line_dash="dot",  line_color=ACCENT_GREEN, opacity=0.5,
+                          annotation_text="Margen de seguridad 30%")
+        fig_val.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=350, xaxis_title="Upside vs precio actual (%)",
+        )
+        st.plotly_chart(fig_val, use_container_width=True)
+
+        fig_bar = px.bar(
+            df_val.sort_values("Valor"), x="Valor", y="Metodo", color="Tipo",
+            orientation="h",
+            title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
+            color_discrete_map=COLOR_MAP,
+        )
+        fig_bar.add_vline(x=current_price, line_dash="dash", line_color=ACCENT_RED,
+                          annotation_text=f"Precio: {current_price:.2f}")
+        fig_bar.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=max(400, len(df_val) * 22),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.markdown("### Detalle de cada método")
+        for _, row in df_val.sort_values("Upside %", ascending=False).iterrows():
+            with st.expander(f"{row['Metodo']} — {row['Tipo']}"):
+                st.write(f"**Tipo:** {row['Tipo']}")
+                st.write(f"**Calidad:** {row['Calidad']}")
+                st.write(f"**Upside:** {fmt_num(row['Upside %'],1,'%')}")
+                st.write(f"**Valor intrínseco:** {fmt_num(row['Valor'])} {currency}")
+                st.write(f"**Precio actual:** {fmt_num(row['Precio'])} {currency}")
+                st.write(f"**Interpretación:** {rango_upside(row['Upside %'])}")
+                st.markdown("**Cómo se calculó:**")
+                st.code(row["Supuestos"])
+
+# ---- BENCHMARKS ----
+with tab_bench:
+    st.subheader("Comparación con benchmarks del sector")
+    peers = get_benchmark_list(info, active_ticker)
+    if not peers:
+        st.info("No hay benchmarks definidos para este sector.")
+    else:
+        tickers_all = [active_ticker] + peers
+        with st.spinner("Descargando datos de benchmarks..."):
+            bench_data = {}
+            for t in tickers_all:
+                try:
+                    tk  = yf.Ticker(t)
+                    inf = tk.info
+                    bench_data[t] = {
+                        "Nombre":      inf.get("shortName", t),
+                        "P/E":         safe_float(inf.get("trailingPE")),
+                        "P/B":         safe_float(inf.get("priceToBook")),
+                        "ROE":         safe_float(inf.get("returnOnEquity")),
+                        "Margen neto": safe_float(inf.get("profitMargins")),
+                        "Precio":      safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        "Market Cap":  safe_float(inf.get("marketCap")),
+                    }
+                except Exception:
+                    continue
+
+        if len(bench_data) <= 1:
+            st.warning("No se pudieron cargar datos de benchmarks.")
+        else:
+            df_bench = pd.DataFrame.from_dict(bench_data, orient="index")
+            df_bench.index.name = "Ticker"
+            df_bench.reset_index(inplace=True)
+
+            df_view = pd.DataFrame({
+                "Ticker":      df_bench["Ticker"],
+                "Nombre":      df_bench["Nombre"],
+                "Precio":      df_bench["Precio"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/D"),
+                "P/E":         df_bench["P/E"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/D"),
+                "P/B":         df_bench["P/B"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/D"),
+                "ROE":         df_bench["ROE"].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/D"),
+                "Margen neto": df_bench["Margen neto"].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/D"),
+                "Market Cap":  df_bench["Market Cap"].apply(fmt_large),
+            }).reindex(df_bench.sort_values("Market Cap", ascending=False).index)
+
+            st.dataframe(style_df(df_view), use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+
+            fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_comp.add_trace(
+                go.Bar(x=df_bench["Ticker"], y=df_bench["P/E"], name="P/E", marker_color=ACCENT_BLUE),
+                secondary_y=False,
+            )
+            fig_comp.add_trace(
+                go.Scatter(x=df_bench["Ticker"], y=df_bench["ROE"] * 100,
+                           name="ROE (%)", mode="lines+markers", line_color=ACCENT_GREEN),
+                secondary_y=True,
+            )
+            fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
+            fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
+            fig_comp.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400,
+            )
+            st.plotly_chart(fig_comp, use_container_width=True)
+
+# ---- CORRELACIONES ----
+with tab_corr:
+    st.subheader("Correlación de rentabilidades")
+    corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
+    if active_ticker not in corr_tickers:
+        corr_tickers.insert(0, active_ticker)
+
+    with st.spinner("Descargando precios históricos..."):
+        try:
+            df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
+            if isinstance(df_download.columns, pd.MultiIndex):
+                prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
+            else:
+                prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
+            returns = prices.pct_change().dropna()
+        except Exception as e:
+            st.error(f"No se pudo descargar precios: {e}")
+            returns = None
+
+    if returns is not None and not returns.empty:
+        corr_matrix = returns.corr()
+        st.markdown("#### Matriz de correlación")
+        fig_corr = px.imshow(
+            corr_matrix, text_auto=".2f",
+            color_continuous_scale="RdBu_r", zmin=-1, zmax=1,
+        )
+        fig_corr.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400,
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+        st.markdown("#### Rentabilidades acumuladas")
+        cum = (1 + returns).cumprod()
+        fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"})
+        fig_cum.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400,
+        )
+        st.plotly_chart(fig_cum, use_container_width=True)
+
+# ---- PRECIO ----
+with tab_price:
+    st.subheader("Histórico de precio y volumen")
+    if hist is None or hist.empty:
+        st.warning("No hay datos históricos disponibles.")
+    else:
+        fig_price = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            vertical_spacing=0.03, row_heights=[0.7, 0.3],
+        )
+        fig_price.add_trace(
+            go.Candlestick(
+                x=hist.index, open=hist["Open"], high=hist["High"],
+                low=hist["Low"], close=hist["Close"], name="OHLC",
+            ),
+            row=1, col=1,
+        )
+        fig_price.add_trace(
+            go.Bar(x=hist.index, y=hist["Volume"], name="Volumen", marker_color=ACCENT_BLUE),
+            row=2, col=1,
+        )
+        fig_price.update_layout(
+            height=600, xaxis_rangeslider_visible=False,
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_price, use_container_width=True)
+
+# ---- OPTIMIZACIÓN CARTERA ----
+with tab_port:
+    st.subheader("Optimización de cartera de Markowitz")
+
+    if returns is not None and not returns.empty:
+        c_opt1, c_opt2 = st.columns(2)
+        with c_opt1:
+            objetivo = st.selectbox(
+                "Objetivo del optimizador",
+                ["Maximizar ratio Sharpe (eficiencia)", "Minimizar varianza (mínimo riesgo)"],
+            )
+        with c_opt2:
+            rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
+
+        num_activos         = len(corr_tickers)
+        rendimientos_medios = returns.mean() * 252
+        matriz_covarianza   = returns.cov() * 252
+
+        def estadisticas_cartera(weights):
+            weights     = np.array(weights)
+            r_cartera   = np.sum(rendimientos_medios * weights)
+            vol_cartera = np.sqrt(np.dot(weights.T, np.dot(matriz_covarianza, weights)))
+            sharpe      = (r_cartera - rf_rate) / vol_cartera if vol_cartera > 0 else 0
+            return r_cartera, vol_cartera, sharpe
+
+        def funcion_a_minimizar(weights):
+            if objetivo.startswith("Maximizar"):
+                return -estadisticas_cartera(weights)[2]
+            return estadisticas_cartera(weights)[1]
+
+        restricciones   = ({"type": "eq", "fun": lambda x: np.sum(x) - 1},)
+        limites         = tuple((0, 1) for _ in range(num_activos))
+        pesos_iniciales = [1.0 / num_activos] * num_activos
+
+        resultado_opt = minimize(
+            funcion_a_minimizar, pesos_iniciales,
+            method="SLSQP", bounds=limites, constraints=restricciones,
+        )
+
+        if resultado_opt.success:
+            pesos_optimos              = resultado_opt.x
+            r_opt, vol_opt, sharpe_opt = estadisticas_cartera(pesos_optimos)
+
+            st.markdown("#### Métricas de la cartera óptima")
+            m_p1, m_p2, m_p3 = st.columns(3)
+            m_p1.metric("Rentabilidad esperada anual",    f"{r_opt*100:.2f}%")
+            m_p2.metric("Volatilidad de la cartera",      f"{vol_opt*100:.2f}%")
+            m_p3.metric("Ratio Sharpe resultante",        f"{sharpe_opt:.2f}")
+
+            df_pesos = pd.DataFrame({
+                "Activo":           corr_tickers,
+                "Ponderación (%)":  [f"{w*100:.2f}%" for w in pesos_optimos],
+                "Fracción decimal": np.round(pesos_optimos, 4),
+            }).sort_values(by="Fracción decimal", ascending=False)
+
+            st.dataframe(style_df(df_pesos), use_container_width=True, hide_index=True)
+
+            fig_pie = px.pie(
+                df_pesos[df_pesos["Fracción decimal"] > 0.001],
+                values="Fracción decimal",
+                names="Activo",
+                title=f"Distribución recomendada de capital ({objetivo})",
+                color_discrete_sequence=[ACCENT_BLUE, ACCENT_GREEN, "#A78BFA", ACCENT_OCHRE, "#60A5FA", ACCENT_RED],
+            )
+            fig_pie.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.error("El algoritmo de optimización no pudo converger.")
+    else:
+        st.warning("Datos históricos insuficientes. Configura los tickers en las opciones superiores.")
