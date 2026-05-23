@@ -1031,15 +1031,19 @@ with tab_port:
 
             st.dataframe(df_pesos, use_container_width=True, hide_index=True)
 
-            fig_pie = px.pie(
-                df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
-                values="Fracción Decimal", 
-                names="Activo",
-                title=f"Distribución recomendada de capital ({objetivo})",
-                color_discrete_sequence=px.colors.sequential.Skycrest
-            )
-            fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_pie, use_container_width=True)
+            # ==========================================
+# CÓDIGO CORREGIDO PARA EL GRÁFICO DE TARTA
+# ==========================================
+fig_pie = px.pie(
+    df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
+    values="Fracción Decimal", 
+    names="Activo",
+    title=f"Distribución recomendada de capital ({objetivo})",
+    # Solución: Usamos una lista explícita con tus colores de acento y tonos armónicos
+    color_discrete_sequence=[ACCENT_BLUE, ACCENT_GREEN, "#A78BFA", "#FB923C", "#60A5FA", "#F472B6"]
+)
+fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+st.plotly_chart(fig_pie, use_container_width=True)
             
         else:
             st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
