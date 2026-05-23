@@ -16,12 +16,12 @@ if "analyzed_ticker" not in st.session_state:
     st.session_state["analyzed_ticker"] = ""
 
 # ==========================================
-# CONFIGURACIÓN DE COLORES (PALETA VS CODE LIGHT)
+# CONFIGURACIÓN DE COLORES
 # ==========================================
-ACCENT_BLUE  = "#268BD2"
-ACCENT_GREEN = "#2AA198"
-ACCENT_RED   = "#D30102"
-ACCENT_OCHRE = "#B58900"
+ACCENT_BLUE   = "#268BD2"
+ACCENT_GREEN  = "#2AA198"
+ACCENT_RED    = "#D30102"
+ACCENT_OCHRE  = "#B58900"
 TEXT_PRIMARY  = "#433F38"
 TEXT_SECONDARY = "#7A756B"
 CARD_BG = "#F4EFCF"
@@ -29,22 +29,25 @@ BORDER  = "#EAE4CD"
 BG_MAIN = "#FDF6E3"
 
 # ==========================================
-# CSS — separado del f-string para evitar
-# SyntaxError con llaves de CSS
+# CSS GLOBAL
 # ==========================================
 css = f"""
 <style>
 [data-testid="collapsedControl"] {{ display: none; }}
+
 .block-container {{
     padding-top: 2rem;
     padding-bottom: 2rem;
     max-width: 1300px;
 }}
+
 .stApp {{
     background-color: {BG_MAIN};
     color: {TEXT_PRIMARY};
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }}
+
+/* Hero */
 .hero-title {{
     font-size: 2.8rem;
     font-weight: 800;
@@ -63,6 +66,8 @@ css = f"""
     text-transform: uppercase;
     margin-bottom: 2rem;
 }}
+
+/* Metric cards */
 .metric-card {{
     background: {CARD_BG};
     border-radius: 8px;
@@ -83,10 +88,8 @@ css = f"""
     font-weight: 600;
     color: {TEXT_PRIMARY};
 }}
-.metric-sub {{
-    color: {TEXT_SECONDARY};
-    font-size: 0.75rem;
-}}
+
+/* Tabs */
 .stTabs [data-baseweb="tab"] {{
     font-size: 0.9rem;
     padding: 0.75rem 1.25rem;
@@ -98,6 +101,28 @@ css = f"""
 .stTabs [aria-selected="true"] {{
     color: {TEXT_PRIMARY} !important;
     border-bottom-color: {ACCENT_BLUE} !important;
+}}
+
+/* ── Tablas interactivas st.dataframe ── */
+[data-testid="stDataFrame"] {{
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    overflow: hidden;
+}}
+[data-testid="stDataFrame"] th {{
+    background-color: {BORDER} !important;
+    color: {TEXT_PRIMARY} !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+}}
+[data-testid="stDataFrame"] [role="gridcell"] {{
+    background-color: {CARD_BG} !important;
+    color: {TEXT_PRIMARY} !important;
+    font-size: 13px !important;
+}}
+[data-testid="stDataFrame"] [role="row"]:hover [role="gridcell"] {{
+    background-color: #E0DAB6 !important;
 }}
 </style>
 """
@@ -183,53 +208,6 @@ def get_benchmark_list(info, main_ticker):
 
 
 # ==========================================
-# HELPER REUTILIZABLE DE ESTILO DE TABLAS
-# ==========================================
-def apply_table_style(styler):
-    """Aplica el estilo visual Solarized Light a cualquier pandas Styler."""
-    return (
-        styler
-        .set_properties(
-            **{
-                "background-color": "#F4EFCF",
-                "color": "#433F38",
-                "border": "1px solid #EAE4CD",
-                "font-size": "13px",
-            }
-        )
-        .set_table_styles(
-            [
-                {
-                    "selector": "th",
-                    "props": [
-                        ("background-color", "#EAE4CD"),
-                        ("color", "#433F38"),
-                        ("font-size", "11px"),
-                        ("text-transform", "uppercase"),
-                        ("letter-spacing", "0.06em"),
-                        ("border-bottom", "2px solid #EAE4CD"),
-                        ("padding", "6px 10px"),
-                    ],
-                },
-                {
-                    "selector": "td",
-                    "props": [
-                        ("padding", "5px 10px"),
-                        ("border-bottom", "1px solid #EAE4CD"),
-                    ],
-                },
-                {
-                    "selector": "tr:hover td",
-                    "props": [
-                        ("background-color", "#E0DAB6"),
-                    ],
-                },
-            ]
-        )
-    )
-
-
-# ==========================================
 # MÉTODOS DE VALORACIÓN FINANCIERA
 # ==========================================
 def compute_valuations(info, currency):
@@ -257,14 +235,14 @@ def compute_valuations(info, currency):
             pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
         for t in range(6, 11):
             pv += fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5) / (1 + r) ** t
-        terminal   = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
+        terminal    = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
         pv_terminal = terminal / (1 + r) ** 10
         equity = pv + pv_terminal + cash - total_debt
         methods.append({
-            "Método":   label,
-            "Tipo":     "DCF",
-            "Calidad":  calidad,
-            "Valor":    equity / shares,
+            "Método":    label,
+            "Tipo":      "DCF",
+            "Calidad":   calidad,
+            "Valor":     equity / shares,
             "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
         })
 
@@ -280,10 +258,10 @@ def compute_valuations(info, currency):
         for mult, cal in [(8, "Alta"), (10, "Alta"), (12, "Media"), (15, "Media"), (20, "Baja")]:
             ev = ebitda * mult
             methods.append({
-                "Método":   f"EV/EBITDA {mult}×",
-                "Tipo":     "Múltiplo",
-                "Calidad":  cal,
-                "Valor":    (ev + cash - total_debt) / shares,
+                "Método":    f"EV/EBITDA {mult}×",
+                "Tipo":      "Múltiplo",
+                "Calidad":   cal,
+                "Valor":     (ev + cash - total_debt) / shares,
                 "Supuestos": f"EBITDA={fmt_large(ebitda)}, mult={mult}×",
             })
 
@@ -291,10 +269,10 @@ def compute_valuations(info, currency):
         for mult, cal in [(10, "Alta"), (14, "Media"), (18, "Baja")]:
             ev = ebit * mult
             methods.append({
-                "Método":   f"EV/EBIT {mult}×",
-                "Tipo":     "Múltiplo",
-                "Calidad":  cal,
-                "Valor":    (ev + cash - total_debt) / shares,
+                "Método":    f"EV/EBIT {mult}×",
+                "Tipo":      "Múltiplo",
+                "Calidad":   cal,
+                "Valor":     (ev + cash - total_debt) / shares,
                 "Supuestos": f"EBIT={fmt_large(ebit)}, mult={mult}×",
             })
 
@@ -302,48 +280,48 @@ def compute_valuations(info, currency):
     if eps_use and eps_use > 0:
         for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
             methods.append({
-                "Método":   f"P/E {mult}×",
-                "Tipo":     "Múltiplo",
-                "Calidad":  cal,
-                "Valor":    eps_use * mult,
+                "Método":    f"P/E {mult}×",
+                "Tipo":      "Múltiplo",
+                "Calidad":   cal,
+                "Valor":     eps_use * mult,
                 "Supuestos": f"EPS={eps_use:.2f}, mult={mult}×",
             })
 
     if revenue is not None and shares and shares > 0:
         for mult, cal in [(1, "Alta"), (2, "Alta"), (4, "Media"), (6, "Media"), (8, "Baja")]:
             methods.append({
-                "Método":   f"P/Ventas {mult}×",
-                "Tipo":     "Múltiplo",
-                "Calidad":  cal,
-                "Valor":    revenue * mult / shares,
+                "Método":    f"P/Ventas {mult}×",
+                "Tipo":      "Múltiplo",
+                "Calidad":   cal,
+                "Valor":     revenue * mult / shares,
                 "Supuestos": f"Ventas={fmt_large(revenue)}, mult={mult}×",
             })
 
     if bvps and bvps > 0:
         for mult, cal in [(1, "Alta"), (1.5, "Alta"), (2, "Media"), (3, "Media"), (4, "Baja")]:
             methods.append({
-                "Método":   f"P/Valor Libros {mult}×",
-                "Tipo":     "Múltiplo",
-                "Calidad":  cal,
-                "Valor":    bvps * mult,
+                "Método":    f"P/Valor Libros {mult}×",
+                "Tipo":      "Múltiplo",
+                "Calidad":   cal,
+                "Valor":     bvps * mult,
                 "Supuestos": f"BVPS={bvps:.2f}, mult={mult}×",
             })
 
     if eps_use and eps_use > 0 and bvps and bvps > 0:
         graham = math.sqrt(22.5 * eps_use * bvps)
         methods.append({
-            "Método":   "Graham Number",
-            "Tipo":     "Mixto",
-            "Calidad":  "Alta",
-            "Valor":    graham,
+            "Método":    "Graham Number",
+            "Tipo":      "Mixto",
+            "Calidad":   "Alta",
+            "Valor":     graham,
             "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
         graham_adj = math.sqrt(15 * eps_use * bvps)
         methods.append({
-            "Método":   "Graham Ajustado (15×)",
-            "Tipo":     "Mixto",
-            "Calidad":  "Media",
-            "Valor":    graham_adj,
+            "Método":    "Graham Ajustado (15×)",
+            "Tipo":      "Mixto",
+            "Calidad":   "Media",
+            "Valor":     graham_adj,
             "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
 
@@ -356,10 +334,10 @@ def compute_valuations(info, currency):
             if r_div > g_div:
                 val_ddm = div * (1 + g_div) / (r_div - g_div)
                 methods.append({
-                    "Método":   label_div,
-                    "Tipo":     "DDM",
-                    "Calidad":  "Media",
-                    "Valor":    val_ddm,
+                    "Método":    label_div,
+                    "Tipo":      "DDM",
+                    "Calidad":   "Media",
+                    "Valor":     val_ddm,
                     "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
                 })
 
@@ -374,7 +352,7 @@ def compute_valuations(info, currency):
 
 
 # ==========================================
-# INTERFAZ DE BÚSQUEDA (HERO)
+# HERO
 # ==========================================
 st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown(
@@ -438,7 +416,7 @@ if not st.session_state.analyzed_ticker:
 active_ticker = st.session_state.analyzed_ticker
 
 # ==========================================
-# EXTRACCIÓN GLOBAL DE DATOS
+# EXTRACCIÓN DE DATOS
 # ==========================================
 with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
@@ -483,17 +461,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-mc     = fmt_large(info.get("marketCap"))
-high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
-low52  = fmt_num(info.get("fiftyTwoWeekLow"))
-beta_v = fmt_num(info.get("beta"))
-
 k1, k2, k3, k4 = st.columns(4)
 for col, label, val in [
-    (k1, "Market Cap", mc),
-    (k2, "52W Máx",    f"{high52} {currency}"),
-    (k3, "52W Mín",    f"{low52} {currency}"),
-    (k4, "Beta",       beta_v),
+    (k1, "Market Cap", fmt_large(info.get("marketCap"))),
+    (k2, "52W Máx",    f"{fmt_num(info.get('fiftyTwoWeekHigh'))} {currency}"),
+    (k3, "52W Mín",    f"{fmt_num(info.get('fiftyTwoWeekLow'))} {currency}"),
+    (k4, "Beta",       fmt_num(info.get("beta"))),
 ]:
     with col:
         st.markdown(
@@ -514,414 +487,4 @@ tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
 
 # ==== PESTAÑA 1: EMPRESA ====
 with tab_emp:
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.subheader("Descripción")
-        desc = info.get("longBusinessSummary")
-        if desc:
-            st.write(desc)
-        else:
-            st.info("No hay descripción disponible.")
-    with c2:
-        st.subheader("Datos corporativos")
-        employees = info.get("fullTimeEmployees")
-        for label, val in [
-            ("País",      info.get("country",  "N/A")),
-            ("Ciudad",    info.get("city",      "N/A")),
-            ("Exchange",  info.get("exchange",  "N/A")),
-            ("Empleados", f"{employees:,}" if employees else "N/A"),
-            ("Sector",    sector),
-            ("Industria", industry),
-        ]:
-            st.markdown(
-                f'<div class="metric-card"><div class="metric-label">{label}</div>'
-                f'<div class="metric-value">{val}</div></div>',
-                unsafe_allow_html=True,
-            )
-
-# ==== PESTAÑA 2: RATIOS ====
-with tab_rat:
-    pe            = safe_float(info.get("trailingPE"))
-    fwd_pe        = safe_float(info.get("forwardPE"))
-    pb            = safe_float(info.get("priceToBook"))
-    ps            = safe_float(info.get("priceToSalesTrailing12Months"))
-    roe           = safe_float(info.get("returnOnEquity"))
-    roa           = safe_float(info.get("returnOnAssets"))
-    profit_margin = safe_float(info.get("profitMargins"))
-    gross_margin  = safe_float(info.get("grossMargins"))
-    debt_equity   = safe_float(info.get("debtToEquity"))
-    current_ratio = safe_float(info.get("currentRatio"))
-    quick_ratio   = safe_float(info.get("quickRatio"))
-    dividend_yield= safe_float(info.get("dividendYield"))
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("**Valoración de mercado**")
-        st.write(f"P/E (TTM): **{fmt_num(pe)}**")
-        st.write(f"P/E (Fwd): **{fmt_num(fwd_pe)}**")
-        st.write(f"P/B: **{fmt_num(pb)}**")
-        st.write(f"P/S: **{fmt_num(ps)}**")
-    with col2:
-        st.markdown("**Rentabilidad**")
-        st.write(f"ROE: **{fmt_num(roe*100 if roe else None, 1, '%')}**")
-        st.write(f"ROA: **{fmt_num(roa*100 if roa else None, 1, '%')}**")
-        st.write(f"Margen bruto: **{fmt_num(gross_margin*100 if gross_margin else None, 1, '%')}**")
-        st.write(f"Margen neto: **{fmt_num(profit_margin*100 if profit_margin else None, 1, '%')}**")
-    with col3:
-        st.markdown("**Riesgo y liquidez**")
-        st.write(f"Deuda/Equity: **{fmt_num(debt_equity)}**")
-        st.write(f"Current ratio: **{fmt_num(current_ratio)}**")
-        st.write(f"Quick ratio: **{fmt_num(quick_ratio)}**")
-        st.write(f"Dividend yield: **{fmt_num(dividend_yield*100 if dividend_yield else None, 2, '%')}**")
-
-    st.markdown("---")
-    st.markdown("**Perfil financiero (radar)**")
-
-    def norm(v, lo, hi):
-        v2 = safe_float(v, None)
-        if v2 is None:
-            return 0.0
-        return max(0.0, min(1.0, (v2 - lo) / (hi - lo)))
-
-    radar_labels = ["ROE", "ROA", "Margen neto", "P/E bajo", "Deuda baja", "Liquidez"]
-    radar_values = [
-        norm(roe*100 if roe else None, 0, 40),
-        norm(roa*100 if roa else None, 0, 20),
-        norm(profit_margin*100 if profit_margin else None, 0, 30),
-        1 - norm(pe, 0, 40),
-        1 - norm(debt_equity, 0, 200),
-        norm(current_ratio, 0, 3),
-    ]
-    radar_values += [radar_values[0]]
-    radar_labels += [radar_labels[0]]
-
-    fig_radar = go.Figure(
-        data=go.Scatterpolar(
-            r=radar_values, theta=radar_labels,
-            fill="toself", line_color=ACCENT_BLUE,
-            fillcolor="rgba(38,139,210,0.2)",
-        )
-    )
-    fig_radar.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-        showlegend=False,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        height=350,
-    )
-    st.plotly_chart(fig_radar, use_container_width=True)
-
-# ==== PESTAÑA 3: VALORACIÓN INTRÍNSECA ====
-with tab_val:
-    st.subheader("Valoración intrínseca — todos los métodos")
-    methods, current_price = compute_valuations(info, currency)
-
-    if not methods:
-        st.warning("No se pudieron calcular valoraciones por falta de datos.")
-    else:
-        df_val = pd.DataFrame(methods)
-        df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
-
-        def rango_upside(u):
-            if pd.isna(u):
-                return "N/A"
-            if u >= 40:  return "Muy infravalorado"
-            if u >= 20:  return "Infravalorado"
-            if u >= -10: return "En línea"
-            if u >= -30: return "Sobrevalorado"
-            return "Muy sobrevalorado"
-
-        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
-
-        def score_row(row):
-            u   = row["Upside %"]
-            cal = row["Calidad"]
-            if pd.isna(u):  base = 2
-            elif u >= 40:   base = 5
-            elif u >= 20:   base = 4
-            elif u >= 0:    base = 3
-            elif u >= -20:  base = 2
-            else:           base = 1
-            if cal == "Alta": base = min(base + 1, 5)
-            elif cal == "Baja": base = max(base - 1, 1)
-            return "★" * base + "☆" * (5 - base)
-
-        df_val["Score"] = df_val.apply(score_row, axis=1)
-
-        df_tabla = pd.DataFrame({
-            "Método":           df_val["Método"],
-            "Tipo":             df_val["Tipo"],
-            "Score":            df_val["Score"],
-            "Upside (%)":       df_val["Upside %"].apply(lambda u: f"{u:+.1f}%" if pd.notna(u) else "N/A"),
-            "Valor intrínseco": df_val["Valor"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
-            "Precio actual":    df_val["Precio"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
-            "Calidad":          df_val["Calidad"],
-            "Interpretación":   df_val["Interpretación"],
-            "Supuestos":        df_val["Supuestos"],
-        })
-        df_tabla = df_tabla.reindex(df_val.sort_values("Upside %", ascending=False).index)
-
-        col_leg1, col_leg2, col_leg3, col_leg4 = st.columns(4)
-        with col_leg1: st.markdown("🔵 DCF")
-        with col_leg2: st.markdown("🟣 Múltiplo")
-        with col_leg3: st.markdown("🟠 Mixto")
-        with col_leg4: st.markdown("🟢 DDM")
-
-        st.dataframe(apply_table_style(df_tabla.style), use_container_width=True)
-        st.markdown("---")
-
-        upsides = df_val["Upside %"].dropna()
-        m1, m2, m3, m4 = st.columns(4)
-        for col, label, val in [
-            (m1, "Métodos calculados", str(len(df_val))),
-            (m2, "Upside mediano",     f"{upsides.median():+.1f}%" if len(upsides) else "N/A"),
-            (m3, "Upside medio",       f"{upsides.mean():+.1f}%"   if len(upsides) else "N/A"),
-            (m4, "Rango upside",       f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div class="metric-card"><div class="metric-label">{label}</div>'
-                    f'<div class="metric-value">{val}</div></div>',
-                    unsafe_allow_html=True,
-                )
-
-        st.markdown("---")
-
-        fig_val = px.strip(
-            df_val, x="Upside %", y="Tipo", color="Tipo",
-            hover_data=["Método", "Valor", "Supuestos"],
-            title="Distribución de upside por tipo de método",
-            color_discrete_map={"DCF": "#268BD2", "Múltiplo": "#A78BFA", "Mixto": "#B58900", "DDM": "#2AA198"},
-        )
-        fig_val.add_vline(x=0,  line_dash="dash", line_color="#433F38", opacity=0.4)
-        fig_val.add_vline(x=30, line_dash="dot",  line_color="#2AA198", opacity=0.5,
-                          annotation_text="Margen seg. 30%")
-        fig_val.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=350, xaxis_title="Upside vs precio actual (%)",
-        )
-        st.plotly_chart(fig_val, use_container_width=True)
-
-        fig_bar = px.bar(
-            df_val.sort_values("Valor"), x="Valor", y="Método", color="Tipo",
-            orientation="h",
-            title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
-            color_discrete_map={"DCF": "#268BD2", "Múltiplo": "#A78BFA", "Mixto": "#B58900", "DDM": "#2AA198"},
-        )
-        fig_bar.add_vline(x=current_price, line_dash="dash", line_color=ACCENT_RED,
-                          annotation_text=f"Precio: {current_price:.2f}")
-        fig_bar.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=max(400, len(df_val) * 22),
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-# ==== PESTAÑA 4: BENCHMARKS ====
-with tab_bench:
-    st.subheader("Comparación con benchmarks del sector")
-    peers = get_benchmark_list(info, active_ticker)
-    if not peers:
-        st.info("No hay benchmarks definidos para este sector.")
-    else:
-        tickers_all = [active_ticker] + peers
-        with st.spinner("Descargando datos de benchmarks..."):
-            bench_data = {}
-            for t in tickers_all:
-                try:
-                    tk  = yf.Ticker(t)
-                    inf = tk.info
-                    bench_data[t] = {
-                        "Nombre":      inf.get("shortName", t),
-                        "P/E":         safe_float(inf.get("trailingPE")),
-                        "P/B":         safe_float(inf.get("priceToBook")),
-                        "ROE":         safe_float(inf.get("returnOnEquity")),
-                        "Margen neto": safe_float(inf.get("profitMargins")),
-                        "Precio":      safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
-                        "Market Cap":  safe_float(inf.get("marketCap")),
-                    }
-                except Exception:
-                    continue
-
-        if len(bench_data) <= 1:
-            st.warning("No se pudieron cargar datos de benchmarks.")
-        else:
-            df_bench = pd.DataFrame.from_dict(bench_data, orient="index")
-            df_bench.index.name = "Ticker"
-            df_bench.reset_index(inplace=True)
-
-            df_view = pd.DataFrame({
-                "Ticker":      df_bench["Ticker"],
-                "Nombre":      df_bench["Nombre"],
-                "Precio":      df_bench["Precio"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A"),
-                "P/E":         df_bench["P/E"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A"),
-                "P/B":         df_bench["P/B"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A"),
-                "ROE":         df_bench["ROE"].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A"),
-                "Margen neto": df_bench["Margen neto"].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) else "N/A"),
-                "Market Cap":  df_bench["Market Cap"].apply(fmt_large),
-            })
-            df_view = df_view.reindex(df_bench.sort_values("Market Cap", ascending=False).index)
-
-            st.dataframe(apply_table_style(df_view.style), use_container_width=True)
-            st.markdown("---")
-
-            fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_comp.add_trace(
-                go.Bar(x=df_bench["Ticker"], y=df_bench["P/E"], name="P/E", marker_color=ACCENT_BLUE),
-                secondary_y=False,
-            )
-            fig_comp.add_trace(
-                go.Scatter(x=df_bench["Ticker"], y=df_bench["ROE"] * 100,
-                           name="ROE (%)", mode="lines+markers", line_color=ACCENT_GREEN),
-                secondary_y=True,
-            )
-            fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
-            fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
-            fig_comp.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400,
-            )
-            st.plotly_chart(fig_comp, use_container_width=True)
-
-# ==== PESTAÑA 5: CORRELACIONES ====
-with tab_corr:
-    st.subheader("Correlación de rentabilidades")
-    corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
-    if active_ticker not in corr_tickers:
-        corr_tickers.insert(0, active_ticker)
-
-    with st.spinner("Descargando precios históricos..."):
-        try:
-            df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
-            if isinstance(df_download.columns, pd.MultiIndex):
-                prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
-            else:
-                prices = (
-                    df_download["Close"].to_frame(name=corr_tickers[0])
-                    if len(corr_tickers) == 1
-                    else df_download["Close"]
-                )
-            returns = prices.pct_change().dropna()
-        except Exception as e:
-            st.error(f"No se pudo descargar precios: {e}")
-            returns = None
-
-    if returns is not None and not returns.empty:
-        corr_matrix = returns.corr()
-        st.markdown("#### Matriz de correlación")
-        fig_corr = px.imshow(corr_matrix, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
-        fig_corr.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
-        st.plotly_chart(fig_corr, use_container_width=True)
-
-        st.markdown("#### Retornos acumulados")
-        cum = (1 + returns).cumprod()
-        fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"})
-        fig_cum.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=400)
-        st.plotly_chart(fig_cum, use_container_width=True)
-
-# ==== PESTAÑA 6: PRECIO ====
-with tab_price:
-    st.subheader("Histórico de precio y volumen")
-    if hist is None or hist.empty:
-        st.warning("No hay datos históricos disponibles.")
-    else:
-        fig_price = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                                  vertical_spacing=0.03, row_heights=[0.7, 0.3])
-        fig_price.add_trace(
-            go.Candlestick(x=hist.index, open=hist["Open"], high=hist["High"],
-                           low=hist["Low"], close=hist["Close"], name="OHLC"),
-            row=1, col=1,
-        )
-        fig_price.add_trace(
-            go.Bar(x=hist.index, y=hist["Volume"], name="Volumen", marker_color=ACCENT_BLUE),
-            row=2, col=1,
-        )
-        fig_price.update_layout(
-            height=600, xaxis_rangeslider_visible=False,
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(fig_price, use_container_width=True)
-
-# ==== PESTAÑA 7: OPTIMIZACIÓN DE CARTERA (MARKOWITZ) ====
-with tab_port:
-    st.subheader("Optimización de Cartera de Markowitz")
-
-    if returns is not None and not returns.empty:
-        st.markdown("Configura las variables para optimizar tu selección actual de activos:")
-
-        c_opt1, c_opt2 = st.columns(2)
-        with c_opt1:
-            objetivo = st.selectbox(
-                "Objetivo del Optimizador",
-                ["Maximizar Ratio Sharpe (Eficiencia)", "Minimizar Varianza (Mínimo Riesgo)"]
-            )
-        with c_opt2:
-            rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
-
-        num_activos          = len(corr_tickers)
-        rendimientos_medios  = returns.mean() * 252
-        matriz_covarianza    = returns.cov() * 252
-
-        def estadisticas_cartera(weights):
-            weights    = np.array(weights)
-            r_cartera  = np.sum(rendimientos_medios * weights)
-            vol_cartera = np.sqrt(np.dot(weights.T, np.dot(matriz_covarianza, weights)))
-            sharpe     = (r_cartera - rf_rate) / vol_cartera if vol_cartera > 0 else 0
-            return r_cartera, vol_cartera, sharpe
-
-        def funcion_a_minimizar(weights):
-            if objetivo == "Maximizar Ratio Sharpe (Eficiencia)":
-                return -estadisticas_cartera(weights)[2]
-            return estadisticas_cartera(weights)[1]
-
-        restricciones  = ({"type": "eq", "fun": lambda x: np.sum(x) - 1},)
-        limites        = tuple((0, 1) for _ in range(num_activos))
-        pesos_iniciales = [1.0 / num_activos] * num_activos
-
-        resultado_opt = minimize(
-            funcion_a_minimizar, pesos_iniciales,
-            method="SLSQP", bounds=limites, constraints=restricciones,
-        )
-
-        if resultado_opt.success:
-            pesos_optimos           = resultado_opt.x
-            r_opt, vol_opt, sharpe_opt = estadisticas_cartera(pesos_optimos)
-
-            st.markdown("#### Métricas de la Cartera Óptima")
-            m_p1, m_p2, m_p3 = st.columns(3)
-            m_p1.metric("Retorno Esperado Anual",   f"{r_opt*100:.2f}%")
-            m_p2.metric("Volatilidad de la Cartera", f"{vol_opt*100:.2f}%")
-            m_p3.metric("Ratio Sharpe Resultante",   f"{sharpe_opt:.2f}")
-
-            df_pesos = pd.DataFrame({
-                "Activo":                corr_tickers,
-                "Ponderación Óptima (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
-                "Fracción Decimal":      np.round(pesos_optimos, 4),
-            }).sort_values(by="Fracción Decimal", ascending=False)
-
-            # ── Tabla con el mismo estilo que el resto de la app ──
-            st.dataframe(
-                apply_table_style(df_pesos.style),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-            fig_pie = px.pie(
-                df_pesos[df_pesos["Fracción Decimal"] > 0.001],
-                values="Fracción Decimal",
-                names="Activo",
-                title=f"Distribución recomendada de capital ({objetivo})",
-                color_discrete_sequence=[
-                    ACCENT_BLUE, ACCENT_GREEN, "#A78BFA",
-                    ACCENT_OCHRE, "#60A5FA", ACCENT_RED
-                ],
-            )
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        else:
-            st.error("El algoritmo de optimización no pudo converger en una solución válida.")
-
-    else:
-        st.warning("Datos históricos insuficientes. Configura los tickers en las opciones superiores.")
+    c1, c2 = 
