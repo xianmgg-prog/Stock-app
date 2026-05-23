@@ -18,6 +18,12 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Inicializar estados de sesión para evitar reinicios de pantalla involuntarios
+if "analyzed_ticker" not in st.session_state:
+    st.session_state.analyzed_ticker = None
+if "current_query" not in st.session_state:
+    st.session_state.current_query = ""
+
 # =========================
 # COLORES
 # =========================
@@ -191,8 +197,8 @@ def compute_valuations(info, currency):
     net_income = safe_float(info.get("netIncomeToCommon"))
 
     def dcf_model(fcf0, g_high, g_low, r, label, calidad):
-        if fcf0 is None or shares is None or shares <= 0:
-            return
+        if fcf0 is None or shares is None or shares <= 0 or r <= g_low:
+            return  # Evitamos r <= g_low para no romper la asíntota del modelo matemático
         pv = 0.0
         for t in range(1, 6):
             pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
@@ -338,9 +344,15 @@ with col_search:
         placeholder="🔎  Busca una empresa o ticker  (ej: Apple, AAPL, Stellantis, TEF.MC...)",
         label_visibility="collapsed",
     )
+
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
+# Manejo de cambios en el input de texto para limpiar sugerencias anteriores si cambia de búsqueda
+if query != st.session_state.current_query:
+    st.session_state.current_query = query
+
+ticker_sym = ""
 if query:
     suggestions = search_ticker(query)
     if suggestions:
@@ -348,8 +360,10 @@ if query:
         ticker_sym = choice.split(" — ")[0].strip()
     else:
         ticker_sym = query.strip().upper()
-else:
-    ticker_sym = ""
+
+# Al hacer click en analizar o si ya teníamos un ticker guardado, actualizamos el Session State
+if analyze_btn and ticker_sym:
+    st.session_state.analyzed_ticker = ticker_sym
 
 with st.expander("⚙️ Opciones de análisis", expanded=False):
     op1, op2 = st.columns([1, 2])
@@ -361,7 +375,8 @@ with st.expander("⚙️ Opciones de análisis", expanded=False):
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
 
-if not analyze_btn or not ticker_sym:
+# Cambiar la condición de parada para evaluar el Session State en lugar del botón directo
+if not st.session_state.analyzed_ticker:
     st.markdown("---")
     st.markdown(
         f"""
@@ -379,24 +394,27 @@ if not analyze_btn or not ticker_sym:
     )
     st.stop()
 
+# Fijar el ticker desde el estado persistente
+active_ticker = st.session_state.analyzed_ticker
+
 # =========================
 # CARGA DE DATOS
 # =========================
-with st.spinner(f"Cargando datos de {ticker_sym}..."):
+with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
-        stock = yf.Ticker(ticker_sym)
+        stock = yf.Ticker(active_ticker)
         info  = stock.info
         hist  = stock.history(period=period)
     except Exception as e:
-        st.error(f"Error al obtener datos: {e}")
+        st.error(f"Error al obtener datos de {active_ticker}: {e}")
         st.stop()
 
 price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
 if price is None:
-    st.error("No se pudo obtener el precio de mercado. Verifica el ticker.")
+    st.error(f"No se pudo obtener el precio de mercado para {active_ticker}. Verifica si el ticker es correcto o si cotiza en este momento.")
     st.stop()
 
-company_name = info.get("longName") or info.get("shortName") or ticker_sym
+company_name = info.get("longName") or info.get("shortName") or active_ticker
 sector   = info.get("sector",   "N/A")
 industry = info.get("industry", "N/A")
 currency = info.get("currency", "USD")
@@ -415,7 +433,7 @@ st.markdown(
     <div style="margin: 1.2rem 0 0.3rem 0;">
         <span style="font-size:1.7rem;font-weight:700;">{company_name}</span>
         <span style="color:{TEXT_SECONDARY};font-size:0.95rem;margin-left:0.8rem;">
-            {ticker_sym} · {sector} · {industry} · {currency}
+            {active_ticker} · {sector} · {industry} · {currency}
         </span>
     </div>
     <div style="font-size:2rem;font-weight:700;margin-bottom:0.5rem;">
@@ -551,18 +569,18 @@ with tab_rat:
         height=350,
     )
     st.plotly_chart(fig_radar, use_container_width=True)
+
 # ==== TAB VALORACIÓN ====
 with tab_val:
     st.subheader("Valoración intrínseca — todos los métodos")
     methods, current_price = compute_valuations(info, currency)
 
     if not methods:
-        st.warning("No se pudieron calcular valoraciones por falta de datos.")
+        st.warning("No se pudieron calcular valoraciones por falta de datos financieros clave en este activo (FCF, Beneficios o Múltiplos).")
     else:
         df_val = pd.DataFrame(methods)
         df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
-        # Interpretación textual del upside
         def rango_upside(u):
             if pd.isna(u):
                 return "N/A"
@@ -578,7 +596,6 @@ with tab_val:
 
         df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
 
-        # Score en estrellas según calidad + upside
         def score_row(row):
             u = row["Upside %"]
             cal = row["Calidad"]
@@ -604,7 +621,6 @@ with tab_val:
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
 
-        # Formatear valores numéricos como texto
         def fmt_val(v):
             return f"{v:.2f}" if pd.notna(v) else "N/A"
 
@@ -623,12 +639,10 @@ with tab_val:
             "Supuestos": df_val["Supuestos"],
         })
 
-        # Ordenar por Upside numérico descendente
         df_tabla = df_tabla.reindex(
             df_val.sort_values("Upside %", ascending=False).index
         )
 
-        # Leyenda de tipos de método
         col_leg1, col_leg2, col_leg3, col_leg4 = st.columns(4)
         with col_leg1:
             st.markdown("🔵 DCF")
@@ -639,7 +653,6 @@ with tab_val:
         with col_leg4:
             st.markdown("🟢 DDM")
 
-        # === Tabla con fondo oscuro usando Styler + st.table ===
         styled_tabla = (
             df_tabla.style
             .set_properties(
@@ -681,12 +694,9 @@ with tab_val:
             )
         )
 
-        # Usamos st.table para respetar mejor el estilo en dark mode
         st.table(styled_tabla)
-
         st.markdown("---")
 
-        # Métricas resumen
         upsides = df_val["Upside %"].dropna()
         m1, m2, m3, m4 = st.columns(4)
         for col, label, val in [
@@ -705,7 +715,6 @@ with tab_val:
 
         st.markdown("---")
 
-        # Gráfico strip de upsides
         fig_val = px.strip(
             df_val,
             x="Upside %",
@@ -736,7 +745,6 @@ with tab_val:
         )
         st.plotly_chart(fig_val, use_container_width=True)
 
-        # Gráfico barras horizontal
         fig_bar = px.bar(
             df_val.sort_values("Valor"),
             x="Valor",
@@ -767,11 +775,11 @@ with tab_val:
 # ==== TAB BENCHMARKS ====
 with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
-    peers = get_benchmark_list(info, ticker_sym)
+    peers = get_benchmark_list(info, active_ticker)
     if not peers:
-        st.info("No hay benchmarks definidos para este sector.")
+        st.info("No hay benchmarks fijos definidos para este sector.")
     else:
-        tickers_all = [ticker_sym] + peers
+        tickers_all = [active_ticker] + peers
         with st.spinner("Descargando datos de benchmarks..."):
             data = {}
             for t in tickers_all:
@@ -780,9 +788,9 @@ with tab_bench:
                     inf = tk.info
                     data[t] = {
                         "Nombre":    inf.get("shortName", t),
-                        "P/E":       safe_float(inf.get("trailingPE")),
-                        "P/B":       safe_float(inf.get("priceToBook")),
-                        "ROE":       safe_float(inf.get("returnOnEquity")),
+                        "P/E":        safe_float(inf.get("trailingPE")),
+                        "P/B":        safe_float(inf.get("priceToBook")),
+                        "ROE":        safe_float(inf.get("returnOnEquity")),
                         "Margen neto": safe_float(inf.get("profitMargins")),
                         "Precio":    safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
                         "Market Cap": safe_float(inf.get("marketCap")),
@@ -791,13 +799,12 @@ with tab_bench:
                     continue
 
         if len(data) <= 1:
-            st.warning("No se pudieron cargar datos de benchmarks.")
+            st.warning("No se pudieron cargar datos comparativos de los benchmarks.")
         else:
             df_bench = pd.DataFrame.from_dict(data, orient="index")
             df_bench.index.name = "Ticker"
             df_bench.reset_index(inplace=True)
 
-            # Formato columnas numéricas
             def fmt_pe(x):
                 return f"{x:.1f}" if pd.notna(x) else "N/A"
 
@@ -821,12 +828,10 @@ with tab_bench:
                 "Market Cap": df_bench["Market Cap"].apply(fmt_mc),
             })
 
-            # Orden por Market Cap descendente
             df_view = df_view.reindex(
                 df_bench.sort_values("Market Cap", ascending=False).index
             )
 
-            # Tabla con fondo oscuro
             styled_bench = (
                 df_view.style
                 .set_properties(
@@ -869,10 +874,8 @@ with tab_bench:
             )
 
             st.table(styled_bench)
-
             st.markdown("---")
 
-            # Gráfico P/E vs ROE
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
                 go.Bar(
@@ -906,17 +909,22 @@ with tab_bench:
 with tab_corr:
     st.subheader("Correlación de rentabilidades")
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
-    if ticker_sym not in corr_tickers:
-        corr_tickers.insert(0, ticker_sym)
+    if active_ticker not in corr_tickers:
+        corr_tickers.insert(0, active_ticker)
 
     with st.spinner("Descargando precios históricos..."):
         try:
-            prices  = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)["Close"]
-            if isinstance(prices, pd.Series):
-                prices = prices.to_frame(name=corr_tickers[0])
+            df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
+            
+            # Gestión segura de MultiIndex en las columnas devueltas por yfinance
+            if isinstance(df_download.columns, pd.MultiIndex):
+                prices = df_download.xs('Close', level=0, axis=1, drop_level=True)
+            else:
+                prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
+                
             returns = prices.pct_change().dropna()
         except Exception as e:
-            st.error(f"No se pudo descargar precios: {e}")
+            st.error(f"No se pudo calcular la matriz de retornos: {e}")
             returns = None
 
     if returns is not None and not returns.empty:
