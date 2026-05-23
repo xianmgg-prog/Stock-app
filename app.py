@@ -1034,18 +1034,21 @@ with tab_port:
             # ==========================================
 # CÓDIGO CORREGIDO PARA EL GRÁFICO DE TARTA
 # ==========================================
-fig_pie = px.pie(
-    df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
-    values="Fracción Decimal", 
-    names="Activo",
-    title=f"Distribución recomendada de capital ({objetivo})",
-    # Solución: Usamos una lista explícita con tus colores de acento y tonos armónicos
-    color_discrete_sequence=[ACCENT_BLUE, ACCENT_GREEN, "#A78BFA", "#FB923C", "#60A5FA", "#F472B6"]
-)
-fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-st.plotly_chart(fig_pie, use_container_width=True)
+# ... (Aquí va el código previo donde se genera el objeto fig_pie) ...
+            fig_pie = px.pie(
+                df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
+                values="Fracción Decimal", 
+                names="Activo",
+                title=f"Distribución recomendada de capital ({objetivo})",
+                color_discrete_sequence=[ACCENT_BLUE, ACCENT_GREEN, "#A78BFA", "#FB923C", "#60A5FA", "#F472B6"]
+            )
+            fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_pie, use_container_width=True)
             
         else:
+            # Este else está alineado con: if resultado_opt.success:
             st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
+            
     else:
+        # Este else está alineado con la condición inicial: if returns is not None and not returns.empty:
         st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
