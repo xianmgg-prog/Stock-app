@@ -9,9 +9,15 @@ import requests
 import math
 from scipy.optimize import minimize
 
-# =========================
+# ==========================================
+# INICIALIZACIÓN SEGURA DEL ESTADO
+# ==========================================
+if "analyzed_ticker" not in st.session_state:
+    st.session_state["analyzed_ticker"] = ""
+
+# ==========================================
 # CONFIGURACIÓN DE COLORES (PALETA VS CODE LIGHT)
-# =========================
+# ==========================================
 ACCENT_BLUE = "#268BD2"       # Azul de palabras clave / Selección
 ACCENT_GREEN = "#2AA198"      # Verde azulado armónico para subidas
 ACCENT_RED = "#D30102"        # Rojo suave para bajadas
@@ -41,7 +47,6 @@ st.markdown(
         font-weight: 800;
         letter-spacing: 0.03em;
         text-align: center;
-        /* Degradado basado en el azul y ocre de tu tema */
         background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_OCHRE});
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -79,7 +84,6 @@ st.markdown(
         color: {TEXT_SECONDARY};
         font-size: 0.75rem;
     }}
-    /* Ajuste de pestañas para que contrasten con el fondo crema */
     .stTabs [data-baseweb="tab"] {{
         font-size: 0.9rem;
         padding: 0.75rem 1.25rem;
@@ -96,9 +100,10 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-# =========================
+
+# ==========================================
 # HELPERS DE FORMATEO Y APIS
-# =========================
+# ==========================================
 def safe_float(x, default=None):
     if x is None:
         return default
@@ -174,9 +179,9 @@ def get_benchmark_list(info, main_ticker):
     return peers[:4]
 
 
-# =========================
+# ==========================================
 # MÉTODOS DE VALORACIÓN FINANCIERA
-# =========================
+# ==========================================
 def compute_valuations(info, currency):
     methods = []
 
@@ -213,7 +218,6 @@ def compute_valuations(info, currency):
             "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
         })
 
-    # --- Variantes de Modelos DCF ---
     if fcf is not None:
         dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Agresivo", "Media")
         dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base",     "Alta")
@@ -222,7 +226,6 @@ def compute_valuations(info, currency):
     if net_income is not None and shares and shares > 0:
         dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto proxy)", "Media")
 
-    # --- EV / EBITDA múltiplos ---
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
         for mult, cal in [(8, "Alta"), (10, "Alta"), (12, "Media"), (15, "Media"), (20, "Baja")]:
             ev = ebitda * mult
@@ -234,7 +237,6 @@ def compute_valuations(info, currency):
                 "Supuestos": f"EBITDA={fmt_large(ebitda)}, mult={mult}×",
             })
 
-    # --- EV / EBIT múltiplos ---
     if ebit is not None and ebit > 0 and shares and shares > 0:
         for mult, cal in [(10, "Alta"), (14, "Media"), (18, "Baja")]:
             ev = ebit * mult
@@ -246,7 +248,6 @@ def compute_valuations(info, currency):
                 "Supuestos": f"EBIT={fmt_large(ebit)}, mult={mult}×",
             })
 
-    # --- P/E objetivo ---
     eps_use = eps if (eps and eps > 0) else fwd_eps
     if eps_use and eps_use > 0:
         for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
@@ -258,7 +259,6 @@ def compute_valuations(info, currency):
                 "Supuestos": f"EPS={eps_use:.2f}, mult={mult}×",
             })
 
-    # --- P/S múltiplos ---
     if revenue is not None and shares and shares > 0:
         for mult, cal in [(1, "Alta"), (2, "Alta"), (4, "Media"), (6, "Media"), (8, "Baja")]:
             methods.append({
@@ -269,7 +269,6 @@ def compute_valuations(info, currency):
                 "Supuestos": f"Ventas={fmt_large(revenue)}, mult={mult}×",
             })
 
-    # --- P/B múltiplos ---
     if bvps and bvps > 0:
         for mult, cal in [(1, "Alta"), (1.5, "Alta"), (2, "Media"), (3, "Media"), (4, "Baja")]:
             methods.append({
@@ -280,7 +279,6 @@ def compute_valuations(info, currency):
                 "Supuestos": f"BVPS={bvps:.2f}, mult={mult}×",
             })
 
-    # --- Graham Number ---
     if eps_use and eps_use > 0 and bvps and bvps > 0:
         graham = math.sqrt(22.5 * eps_use * bvps)
         methods.append({
@@ -299,7 +297,6 @@ def compute_valuations(info, currency):
             "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
 
-    # --- Dividend Discount Model (DDM) ---
     if div and div > 0:
         for g_div, r_div, label_div in [
             (0.02, 0.08, "DDM (g 2%, r 8%)"),
@@ -316,7 +313,6 @@ def compute_valuations(info, currency):
                     "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
                 })
 
-    # Cálculo de Upside potencial
     for m in methods:
         m["Precio"] = price
         if price and price > 0:
@@ -328,9 +324,9 @@ def compute_valuations(info, currency):
     return methods, price
 
 
-# =========================
+# ==========================================
 # INTERFAZ DE BÚSQUEDA (HERO)
-# =========================
+# ==========================================
 st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
 
@@ -344,9 +340,6 @@ with col_search:
 with col_btn:
     analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
-# ==========================================
-# COMPROBACIÓN SEGURA DE LA CONSULTA (CON .get)
-# ==========================================
 if query != st.session_state.get("current_query", ""):
     st.session_state["current_query"] = query
 
@@ -372,7 +365,6 @@ with st.expander("⚙️ Opciones de análisis", expanded=False):
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
 
-# Pantalla de bienvenida / Control de parada
 if not st.session_state.analyzed_ticker:
     st.markdown("---")
     st.markdown(
@@ -393,9 +385,9 @@ if not st.session_state.analyzed_ticker:
 
 active_ticker = st.session_state.analyzed_ticker
 
-# =========================
+# ==========================================
 # EXTRACCIÓN GLOBAL DE DATOS
-# =========================
+# ==========================================
 with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
         stock = yf.Ticker(active_ticker)
@@ -459,13 +451,11 @@ for col, label, val in [
         )
 
 st.markdown("")
-
-# Inicialización de la variable global de retornos para las pestañas de análisis matemático
 returns = None
 
-# =========================
+# ==========================================
 # CONSTRUCCIÓN DE PANEL DE PESTAÑAS
-# =========================
+# ==========================================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
     ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio", "Optimización de Cartera"]
 )
@@ -652,50 +642,48 @@ with tab_val:
         with col_leg4:
             st.markdown("🟢 DDM")
 
-        # === TABLA CORREGIDA CON LA PALETA CLARA ===
-            styled_tabla = (
-                df_tabla.style
-                .set_properties(
-                    **{
-                        "background-color": "#F4EFCF",  # Fondo crema suave
-                        "color": "#433F38",             # Texto oscuro orgánico
-                        "border": "1px solid #EAE4CD",   # Borde suave
-                        "font-size": "13px",
-                    }
-                )
-                .set_table_styles(
-                    [
-                        {
-                            "selector": "th",
-                            "props": [
-                                ("background-color", "#EAE4CD"), # Cabecera sutilmente más oscura
-                                ("color", "#433F38"),
-                                ("font-size", "11px"),
-                                ("text-transform", "uppercase"),
-                                ("letter-spacing", "0.06em"),
-                                ("border-bottom", "2px solid #EAE4CD"),
-                                ("padding", "6px 10px"),
-                            ],
-                        },
-                        {
-                            "selector": "td",
-                            "props": [
-                                ("padding", "5px 10px"),
-                                ("border-bottom", "1px solid #EAE4CD"),
-                            ],
-                        },
-                        {
-                            "selector": "tr:hover td",
-                            "props": [
-                                ("background-color", "#E0DAB6"), # Efecto hover del tema
-                            ],
-                        },
-                    ]
-                )
+        styled_tabla = (
+            df_tabla.style
+            .set_properties(
+                **{
+                    "background-color": "#F4EFCF",  
+                    "color": "#433F38",              
+                    "border": "1px solid #EAE4CD",   
+                    "font-size": "13px",
+                }
             )
+            .set_table_styles(
+                [
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#EAE4CD"), 
+                            ("color", "#433F38"),
+                            ("font-size", "11px"),
+                            ("text-transform", "uppercase"),
+                            ("letter-spacing", "0.06em"),
+                            ("border-bottom", "2px solid #EAE4CD"),
+                            ("padding", "6px 10px"),
+                        ],
+                    },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "5px 10px"),
+                            ("border-bottom", "1px solid #EAE4CD"),
+                        ],
+                    },
+                    {
+                        "selector": "tr:hover td",
+                        "props": [
+                            ("background-color", "#E0DAB6"), 
+                        ],
+                    },
+                ]
+            )
+        )
 
-            # Renderizar la tabla en la interfaz
-            st.table(styled_tabla)
+        st.dataframe(styled_tabla, use_container_width=True)
         st.markdown("---")
 
         upsides = df_val["Upside %"].dropna()
@@ -704,8 +692,7 @@ with tab_val:
             (m1, "Métodos calculados", str(len(df_val))),
             (m2, "Upside mediano", f"{upsides.median():+.1f}%" if len(upsides) else "N/A"),
             (m3, "Upside medio", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A"),
-            (m4, "Rango upside",
-             f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
+            (m4, "Rango upside", f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A"),
         ]:
             with col:
                 st.markdown(
@@ -773,7 +760,7 @@ with tab_val:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ==== PESTAÑA 4: BENCHMARKS ====
+# ==== PESTAÑA 4: BENCHMARKS (CORREGIDA) ====
 with tab_bench:
     st.subheader("Comparación con benchmarks del sector")
     peers = get_benchmark_list(info, active_ticker)
@@ -833,19 +820,13 @@ with tab_bench:
                 df_bench.sort_values("Market Cap", ascending=False).index
             )
 
-            styled_bench = (# Reordenamos el dataframe visual según el Market Cap
-            df_view = df_view.reindex(
-                df_bench.sort_values("Market Cap", ascending=False).index
-            )
-
-            # Aplicamos todos los estilos juntos en una sola variable limpia
             styled_bench = (
                 df_view.style
                 .set_properties(
                     **{
-                        "background-color": "#F4EFCF",  # Fondo de celda claro
-                        "color": "#433F38",              # Texto oscuro
-                        "border": "1px solid #EAE4CD",   # Borde suave
+                        "background-color": "#F4EFCF",  
+                        "color": "#433F38",              
+                        "border": "1px solid #EAE4CD",   
                         "font-size": "13px",
                     }
                 )
@@ -854,7 +835,7 @@ with tab_bench:
                         {
                             "selector": "th",
                             "props": [
-                                ("background-color", "#EAE4CD"),  # Cabecera más oscura
+                                ("background-color", "#EAE4CD"),  
                                 ("color", "#433F38"),
                                 ("font-size", "11px"),
                                 ("text-transform", "uppercase"),
@@ -866,17 +847,14 @@ with tab_bench:
                         {
                             "selector": "tr:hover td",
                             "props": [
-                                ("background-color", "#E0DAB6"),  # Efecto hover armónico
+                                ("background-color", "#E0DAB6"),  
                             ],
                         },
                     ]
                 )
             )
 
-            # ¡No olvides mostrar la tabla en Streamlit!
             st.dataframe(styled_bench, use_container_width=True)
-
-            st.table(styled_bench)
             st.markdown("---")
 
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
@@ -918,8 +896,6 @@ with tab_corr:
     with st.spinner("Descargando precios históricos..."):
         try:
             df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
-            
-            # Gestión segura de estructuras MultiIndex en las columnas
             if isinstance(df_download.columns, pd.MultiIndex):
                 prices = df_download.xs('Close', level=0, axis=1, drop_level=True)
             else:
@@ -986,7 +962,6 @@ with tab_port:
         with c_opt2:
             rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
 
-        # Anualización de datos estadísticos (252 días hábiles)
         num_activos = len(corr_tickers)
         rendimientos_medios = returns.mean() * 252
         matriz_covarianza = returns.cov() * 252
@@ -1004,7 +979,6 @@ with tab_port:
             else:
                 return estadisticas_cartera(weights)[1]
 
-        # Restricciones matemáticas (Suma de pesos = 1.0, Sin posiciones cortas)
         restricciones = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
         limites = tuple((0, 1) for _ in range(num_activos))
         pesos_iniciales = num_activos * [1.0 / num_activos]
@@ -1035,10 +1009,6 @@ with tab_port:
 
             st.dataframe(df_pesos, use_container_width=True, hide_index=True)
 
-            # ==========================================
-# CÓDIGO CORREGIDO PARA EL GRÁFICO DE TARTA
-# ==========================================
-# ... (Aquí va el código previo donde se genera el objeto fig_pie) ...
             fig_pie = px.pie(
                 df_pesos[df_pesos["Fracción Decimal"] > 0.001], 
                 values="Fracción Decimal", 
@@ -1050,9 +1020,7 @@ with tab_port:
             st.plotly_chart(fig_pie, use_container_width=True)
             
         else:
-            # Este else está alineado con: if resultado_opt.success:
             st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
             
     else:
-        # Este else está alineado con la condición inicial: if returns is not None and not returns.empty:
         st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
