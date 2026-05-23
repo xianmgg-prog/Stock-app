@@ -9,9 +9,17 @@ import requests
 import math
 from scipy.optimize import minimize
 
+# =========================
+# ESTADO INICIAL
+# =========================
 if "analyzed_ticker" not in st.session_state:
     st.session_state["analyzed_ticker"] = ""
+if "current_query" not in st.session_state:
+    st.session_state["current_query"] = ""
 
+# =========================
+# COLORES / CSS
+# =========================
 ACCENT_BLUE    = "#268BD2"
 ACCENT_GREEN   = "#2AA198"
 ACCENT_RED     = "#D30102"
@@ -24,25 +32,99 @@ BG_MAIN        = "#FDF6E3"
 
 css = f"""
 <style>
-[data-testid="collapsedControl"] {{ display: none; }}
-.block-container {{ padding-top: 2rem; padding-bottom: 2rem; max-width: 1300px; }}
-.stApp {{ background-color: {BG_MAIN}; color: {TEXT_PRIMARY}; font-family: system-ui, -apple-system, sans-serif; }}
-.hero-title {{ font-size: 2.8rem; font-weight: 800; letter-spacing: 0.03em; text-align: center; background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_OCHRE}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.2rem; }}
-.hero-sub {{ text-align: center; color: {TEXT_SECONDARY}; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2rem; }}
-.metric-card {{ background: {CARD_BG}; border-radius: 8px; padding: 0.8rem 1rem; border: 1px solid {BORDER}; margin-bottom: 0.4rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
-.metric-label {{ color: {TEXT_SECONDARY}; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem; }}
-.metric-value {{ font-size: 1.1rem; font-weight: 600; color: {TEXT_PRIMARY}; }}
-.stTabs [data-baseweb="tab"] {{ font-size: 0.9rem; padding: 0.75rem 1.25rem; color: {TEXT_SECONDARY}; }}
-.stTabs [aria-selected="true"] {{ color: {TEXT_PRIMARY} !important; border-bottom-color: {ACCENT_BLUE} !important; }}
-[data-testid="stDataFrame"] {{ border: 1px solid {BORDER}; border-radius: 8px; overflow: hidden; }}
-[data-testid="stDataFrame"] th {{ background-color: {BORDER} !important; color: {TEXT_PRIMARY} !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.06em !important; }}
-[data-testid="stDataFrame"] [role="gridcell"] {{ background-color: {CARD_BG} !important; color: {TEXT_PRIMARY} !important; font-size: 13px !important; }}
-[data-testid="stDataFrame"] [role="row"]:hover [role="gridcell"] {{ background-color: #E0DAB6 !important; }}
+[data-testid="collapsedControl"] {{ display:none; }}
+.block-container {{
+    padding-top:2rem;
+    padding-bottom:2rem;
+    max-width:1300px;
+}}
+.stApp {{
+    background-color:{BG_MAIN};
+    color:{TEXT_PRIMARY};
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+}}
+.hero-title {{
+    font-size:2.8rem;
+    font-weight:800;
+    letter-spacing:0.03em;
+    text-align:center;
+    background:linear-gradient(90deg,{ACCENT_BLUE},{ACCENT_OCHRE});
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    margin-bottom:0.2rem;
+}}
+.hero-sub {{
+    text-align:center;
+    color:{TEXT_SECONDARY};
+    font-size:1rem;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    margin-bottom:2rem;
+}}
+.metric-card {{
+    background:{CARD_BG};
+    border-radius:8px;
+    padding:0.8rem 1rem;
+    border:1px solid {BORDER};
+    margin-bottom:0.4rem;
+    box-shadow:0 1px 3px rgba(0,0,0,0.05);
+}}
+.metric-label {{
+    color:{TEXT_SECONDARY};
+    font-size:0.75rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-bottom:0.2rem;
+}}
+.metric-value {{
+    font-size:1.1rem;
+    font-weight:600;
+    color:{TEXT_PRIMARY};
+}}
+.stTabs [data-baseweb="tab"] {{
+    font-size:0.9rem;
+    padding:0.75rem 1.25rem;
+    color:{TEXT_SECONDARY};
+}}
+.stTabs [aria-selected="true"] {{
+    color:{TEXT_PRIMARY} !important;
+    border-bottom-color:{ACCENT_BLUE} !important;
+}}
+
+/* Estilo global para TODAS las tablas interactivas */
+[data-testid="stDataFrame"] {{
+    border:1px solid {BORDER};
+    border-radius:8px;
+    overflow:hidden;
+}}
+[data-testid="stDataFrame"] table {{
+    border-spacing:0;
+}}
+[data-testid="stDataFrame"] th {{
+    background-color:{BORDER} !important;
+    color:{TEXT_PRIMARY} !important;
+    font-size:11px !important;
+    text-transform:uppercase !important;
+    letter-spacing:0.06em !important;
+}}
+[data-testid="stDataFrame"] [role="gridcell"] {{
+    background-color:{CARD_BG} !important;
+    color:{TEXT_PRIMARY} !important;
+    font-size:13px !important;
+}}
+[data-testid="stDataFrame"] tbody tr:nth-child(even) [role="gridcell"] {{
+    background-color:#f7f1cf !important;
+}}
+[data-testid="stDataFrame"] [role="row"]:hover [role="gridcell"] {{
+    background-color:#E0DAB6 !important;
+}}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
 
-
+# =========================
+# HELPERS
+# =========================
 def safe_float(x, default=None):
     if x is None:
         return default
@@ -56,13 +138,11 @@ def safe_float(x, default=None):
     except Exception:
         return default
 
-
 def fmt_num(x, decimals=2, suffix=""):
     v = safe_float(x, None)
     if v is None:
         return "N/A"
     return f"{v:.{decimals}f}{suffix}"
-
 
 def fmt_large(x):
     v = safe_float(x, None)
@@ -72,12 +152,11 @@ def fmt_large(x):
     v = abs(v)
     if v >= 1e12:
         return f"{sign*v/1e12:.2f}T"
-    elif v >= 1e9:
+    if v >= 1e9:
         return f"{sign*v/1e9:.2f}B"
-    elif v >= 1e6:
+    if v >= 1e6:
         return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
-
 
 def search_ticker(query: str):
     if not query:
@@ -96,11 +175,10 @@ def search_ticker(query: str):
             symbol = q.get("symbol", "")
             name   = q.get("longname") or q.get("shortname", "")
             exch   = q.get("exchDisp", "")
-            results.append(f"{symbol} --- {name} ({exch})")
+            results.append(f"{symbol} — {name} ({exch})")
         return results
     except Exception:
         return []
-
 
 DEFAULT_BENCHMARKS = {
     "Technology":             ["AAPL", "MSFT", "GOOGL", "META", "AMZN"],
@@ -110,14 +188,15 @@ DEFAULT_BENCHMARKS = {
     "Energy":                 ["XOM", "CVX", "BP", "TOT"],
 }
 
-
 def get_benchmark_list(info, main_ticker):
     sector = info.get("sector")
     peers  = DEFAULT_BENCHMARKS.get(sector, [])
     peers  = [p for p in peers if p.upper() != main_ticker.upper()]
     return peers[:4]
 
-
+# =========================
+# VALORACIONES
+# =========================
 def compute_valuations(info, currency):
     methods = []
 
@@ -151,7 +230,7 @@ def compute_valuations(info, currency):
             "Tipo":      "DCF",
             "Calidad":   calidad,
             "Valor":     equity / shares,
-            "Supuestos": f"g {g_high*100:.0f}%>{g_low*100:.0f}%, r {r*100:.0f}%",
+            "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
         })
 
     if fcf is not None:
@@ -255,18 +334,23 @@ def compute_valuations(info, currency):
 
     return methods, price
 
-
-# ---- HERO ----
+# =========================
+# HERO / BUSCADOR
+# =========================
 st.markdown('<div class="hero-title">Equity Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="hero-sub">Value Investing · Analisis fundamental de empresas cotizadas</div>', unsafe_allow_html=True)
 
 col_search, col_btn = st.columns([4, 1])
 with col_search:
-    query = st.text_input("", placeholder="Busca empresa o ticker: Apple, AAPL, TEF.MC, SAN.MC...", label_visibility="collapsed")
+    query = st.text_input(
+        "",
+        placeholder="Busca empresa o ticker (Apple, AAPL, TEF.MC, SAN.MC...)",
+        label_visibility="collapsed",
+    )
 with col_btn:
     analyze_btn = st.button("Analizar", use_container_width=True, type="primary")
 
-if query != st.session_state.get("current_query", ""):
+if query != st.session_state["current_query"]:
     st.session_state["current_query"] = query
 
 ticker_sym = ""
@@ -274,7 +358,7 @@ if query:
     suggestions = search_ticker(query)
     if suggestions:
         choice     = st.selectbox("Sugerencias", suggestions, label_visibility="collapsed")
-        ticker_sym = choice.split(" --- ")[0].strip()
+        ticker_sym = choice.split(" — ")[0].strip()
     else:
         ticker_sym = query.strip().upper()
 
@@ -294,17 +378,26 @@ with st.expander("Opciones de analisis", expanded=False):
 if not st.session_state["analyzed_ticker"]:
     st.markdown("---")
     st.markdown(
-        f'<div style="text-align:center;color:{TEXT_SECONDARY};padding:3rem 0;">'
-        f'<div style="font-size:3rem;">🏦</div>'
-        f'<div style="font-size:1.1rem;margin-top:0.5rem;">Introduce el nombre o ticker y pulsa <b>Analizar</b></div>'
-        f'<div style="font-size:0.85rem;margin-top:0.5rem;">Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex</div>'
-        f'</div>',
+        f"""
+        <div style="text-align:center;color:{TEXT_SECONDARY};padding:3rem 0;">
+            <div style="font-size:3rem;">🏦</div>
+            <div style="font-size:1.1rem;margin-top:0.5rem;">
+                Introduce el nombre o ticker y pulsa <b>Analizar</b>
+            </div>
+            <div style="font-size:0.85rem;margin-top:0.5rem;">
+                Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
     st.stop()
 
 active_ticker = st.session_state["analyzed_ticker"]
 
+# =========================
+# DATOS PRINCIPALES
+# =========================
 with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
         stock = yf.Ticker(active_ticker)
@@ -334,11 +427,17 @@ else:
     delta_str = ""
 
 st.markdown(
-    f'<div style="margin:1.2rem 0 0.3rem 0;">'
-    f'<span style="font-size:1.7rem;font-weight:700;">{company_name}</span>'
-    f'<span style="color:{TEXT_SECONDARY};font-size:0.95rem;margin-left:0.8rem;">{active_ticker} · {sector} · {industry} · {currency}</span>'
-    f'</div>'
-    f'<div style="font-size:2rem;font-weight:700;margin-bottom:0.5rem;">{price:.2f} {currency} {delta_str}</div>',
+    f"""
+    <div style="margin:1.2rem 0 0.3rem 0;">
+        <span style="font-size:1.7rem;font-weight:700;">{company_name}</span>
+        <span style="color:{TEXT_SECONDARY};font-size:0.95rem;margin-left:0.8rem;">
+            {active_ticker} · {sector} · {industry} · {currency}
+        </span>
+    </div>
+    <div style="font-size:2rem;font-weight:700;margin-bottom:0.5rem;">
+        {price:.2f} {currency} {delta_str}
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -356,14 +455,16 @@ for col, label, val in [
             unsafe_allow_html=True,
         )
 
-st.markdown("")
 returns = None
 
+# =========================
+# PESTAÑAS
+# =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
     ["Empresa", "Ratios", "Valoracion", "Benchmarks", "Correlaciones", "Precio", "Optimizacion Cartera"]
 )
 
-# ---- TAB 1: EMPRESA ----
+# ---- EMPRESA ----
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -387,7 +488,7 @@ with tab_emp:
                 unsafe_allow_html=True,
             )
 
-# ---- TAB 2: RATIOS ----
+# ---- RATIOS ----
 with tab_rat:
     pe            = safe_float(info.get("trailingPE"))
     fwd_pe        = safe_float(info.get("forwardPE"))
@@ -456,7 +557,7 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# ---- TAB 3: VALORACION ----
+# ---- VALORACION ----
 with tab_val:
     st.subheader("Valoracion intrinseca — todos los metodos")
     methods, current_price = compute_valuations(info, currency)
@@ -501,7 +602,37 @@ with tab_val:
             "Supuestos":        df_val["Supuestos"],
         }).reindex(df_val.sort_values("Upside %", ascending=False).index)
 
-        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+        # --- STYLING TABLA VALORACION ---
+        df_style = df_tabla.copy()
+
+        def highlight_upside(val):
+            if val == "N/A":
+                return ""
+            try:
+                v = float(val.replace("%", ""))
+            except Exception:
+                return ""
+            if v >= 40:
+                return "background-color: rgba(34,197,94,0.25); color:#14532d;"
+            if v >= 20:
+                return "background-color: rgba(74,222,128,0.20); color:#166534;"
+            if v >= 0:
+                return "background-color: rgba(156,163,175,0.15); color:#374151;"
+            if v >= -20:
+                return "background-color: rgba(248,113,113,0.20); color:#7f1d1d;"
+            return "background-color: rgba(239,68,68,0.25); color:#7f1d1d;"
+
+        num_cols_val = ["Valor intrinseco", "Precio actual"]
+        styler_val = (
+            df_style.style
+            .set_properties(subset=num_cols_val, **{"text-align": "right"})
+            .set_properties(subset=["Metodo", "Tipo", "Calidad", "Interpretacion"],
+                            **{"font-weight": "500"})
+            .applymap(highlight_upside, subset=["Upside (%)"])
+        )
+
+        st.dataframe(styler_val, use_container_width=True, hide_index=True)
+
         st.markdown("---")
 
         upsides = df_val["Upside %"].dropna()
@@ -552,7 +683,7 @@ with tab_val:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ---- TAB 4: BENCHMARKS ----
+# ---- BENCHMARKS ----
 with tab_bench:
     st.subheader("Comparacion con benchmarks del sector")
     peers = get_benchmark_list(info, active_ticker)
@@ -596,7 +727,46 @@ with tab_bench:
                 "Market Cap":  df_bench["Market Cap"].apply(fmt_large),
             }).reindex(df_bench.sort_values("Market Cap", ascending=False).index)
 
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
+            def color_pe(val):
+                if val == "N/A":
+                    return ""
+                try:
+                    v = float(val)
+                except Exception:
+                    return ""
+                if v < 10:
+                    return "background-color: rgba(34,197,94,0.25);"
+                if v < 20:
+                    return "background-color: rgba(74,222,128,0.20);"
+                if v < 30:
+                    return "background-color: rgba(251,191,36,0.25);"
+                return "background-color: rgba(248,113,113,0.25);"
+
+            def color_roe(val):
+                if val == "N/A":
+                    return ""
+                try:
+                    v = float(val.replace("%", ""))
+                except Exception:
+                    return ""
+                if v < 5:
+                    return "background-color: rgba(248,113,113,0.20);"
+                if v < 10:
+                    return "background-color: rgba(251,191,36,0.25);"
+                if v < 20:
+                    return "background-color: rgba(74,222,128,0.20);"
+                return "background-color: rgba(34,197,94,0.25);"
+
+            styler_bench = (
+                df_view.style
+                .set_properties(subset=["Precio", "P/E", "P/B", "ROE", "Margen neto"],
+                                **{"text-align": "right"})
+                .applymap(color_pe, subset=["P/E"])
+                .applymap(color_roe, subset=["ROE"])
+            )
+
+            st.dataframe(styler_bench, use_container_width=True, hide_index=True)
+
             st.markdown("---")
 
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
@@ -616,7 +786,7 @@ with tab_bench:
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-# ---- TAB 5: CORRELACIONES ----
+# ---- CORRELACIONES ----
 with tab_corr:
     st.subheader("Correlacion de rentabilidades")
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
@@ -629,11 +799,7 @@ with tab_corr:
             if isinstance(df_download.columns, pd.MultiIndex):
                 prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
             else:
-                prices = (
-                    df_download["Close"].to_frame(name=corr_tickers[0])
-                    if len(corr_tickers) == 1
-                    else df_download["Close"]
-                )
+                prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
             returns = prices.pct_change().dropna()
         except Exception as e:
             st.error(f"No se pudo descargar precios: {e}")
@@ -657,7 +823,7 @@ with tab_corr:
         )
         st.plotly_chart(fig_cum, use_container_width=True)
 
-# ---- TAB 6: PRECIO ----
+# ---- PRECIO ----
 with tab_price:
     st.subheader("Historico de precio y volumen")
     if hist is None or hist.empty:
@@ -680,7 +846,7 @@ with tab_price:
         )
         st.plotly_chart(fig_price, use_container_width=True)
 
-# ---- TAB 7: OPTIMIZACION DE CARTERA ----
+# ---- OPTIMIZACION CARTERA ----
 with tab_port:
     st.subheader("Optimizacion de Cartera de Markowitz")
 
@@ -735,7 +901,12 @@ with tab_port:
                 "Fraccion Decimal": np.round(pesos_optimos, 4),
             }).sort_values(by="Fraccion Decimal", ascending=False)
 
-            st.dataframe(df_pesos, use_container_width=True, hide_index=True)
+            styler_pesos = (
+                df_pesos.style
+                .set_properties(subset=["Ponderacion (%)", "Fraccion Decimal"],
+                                **{"text-align": "right"})
+            )
+            st.dataframe(styler_pesos, use_container_width=True, hide_index=True)
 
             fig_pie = px.pie(
                 df_pesos[df_pesos["Fraccion Decimal"] > 0.001],
@@ -749,9 +920,7 @@ with tab_port:
                 plot_bgcolor="rgba(0,0,0,0)",
             )
             st.plotly_chart(fig_pie, use_container_width=True)
-
         else:
             st.error("El algoritmo de optimizacion no pudo converger.")
-
     else:
         st.warning("Datos historicos insuficientes. Configura los tickers en las opciones superiores.")
