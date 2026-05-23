@@ -18,7 +18,7 @@ if "current_query" not in st.session_state:
     st.session_state["current_query"] = ""
 
 # =========================
-# COLORES / CSS
+# COLORES / CSS GLOBAL
 # =========================
 ACCENT_BLUE    = "#268BD2"
 ACCENT_GREEN   = "#2AA198"
@@ -590,10 +590,24 @@ with tab_val:
         df_val["Interpretacion"] = df_val["Upside %"].apply(rango_upside)
         df_val["Score"]          = df_val.apply(score_row, axis=1)
 
+        def flag_upside(u):
+            if pd.isna(u):
+                return "·"
+            if u >= 40:
+                return "🟢"
+            if u >= 20:
+                return "🟢"
+            if u >= 0:
+                return "⚪"
+            if u >= -20:
+                return "🟠"
+            return "🔴"
+
         df_tabla = pd.DataFrame({
             "Metodo":           df_val["Metodo"],
             "Tipo":             df_val["Tipo"],
             "Score":            df_val["Score"],
+            "Flag":             df_val["Upside %"].apply(flag_upside),
             "Upside (%)":       df_val["Upside %"].apply(lambda u: f"{u:+.1f}%" if pd.notna(u) else "N/A"),
             "Valor intrinseco": df_val["Valor"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
             "Precio actual":    df_val["Precio"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
@@ -602,36 +616,7 @@ with tab_val:
             "Supuestos":        df_val["Supuestos"],
         }).reindex(df_val.sort_values("Upside %", ascending=False).index)
 
-        # --- STYLING TABLA VALORACION ---
-        df_style = df_tabla.copy()
-
-        def highlight_upside(val):
-            if val == "N/A":
-                return ""
-            try:
-                v = float(val.replace("%", ""))
-            except Exception:
-                return ""
-            if v >= 40:
-                return "background-color: rgba(34,197,94,0.25); color:#14532d;"
-            if v >= 20:
-                return "background-color: rgba(74,222,128,0.20); color:#166534;"
-            if v >= 0:
-                return "background-color: rgba(156,163,175,0.15); color:#374151;"
-            if v >= -20:
-                return "background-color: rgba(248,113,113,0.20); color:#7f1d1d;"
-            return "background-color: rgba(239,68,68,0.25); color:#7f1d1d;"
-
-        num_cols_val = ["Valor intrinseco", "Precio actual"]
-        styler_val = (
-            df_style.style
-            .set_properties(subset=num_cols_val, **{"text-align": "right"})
-            .set_properties(subset=["Metodo", "Tipo", "Calidad", "Interpretacion"],
-                            **{"font-weight": "500"})
-            .applymap(highlight_upside, subset=["Upside (%)"])
-        )
-
-        st.dataframe(styler_val, use_container_width=True, hide_index=True)
+        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
@@ -727,7 +712,7 @@ with tab_bench:
                 "Market Cap":  df_bench["Market Cap"].apply(fmt_large),
             }).reindex(df_bench.sort_values("Market Cap", ascending=False).index)
 
-            def color_pe(val):
+            def pe_flag(val):
                 if val == "N/A":
                     return ""
                 try:
@@ -735,14 +720,14 @@ with tab_bench:
                 except Exception:
                     return ""
                 if v < 10:
-                    return "background-color: rgba(34,197,94,0.25);"
+                    return "🟢"
                 if v < 20:
-                    return "background-color: rgba(74,222,128,0.20);"
+                    return "🟢"
                 if v < 30:
-                    return "background-color: rgba(251,191,36,0.25);"
-                return "background-color: rgba(248,113,113,0.25);"
+                    return "🟡"
+                return "🔴"
 
-            def color_roe(val):
+            def roe_flag(val):
                 if val == "N/A":
                     return ""
                 try:
@@ -750,22 +735,17 @@ with tab_bench:
                 except Exception:
                     return ""
                 if v < 5:
-                    return "background-color: rgba(248,113,113,0.20);"
+                    return "🔴"
                 if v < 10:
-                    return "background-color: rgba(251,191,36,0.25);"
+                    return "🟡"
                 if v < 20:
-                    return "background-color: rgba(74,222,128,0.20);"
-                return "background-color: rgba(34,197,94,0.25);"
+                    return "🟢"
+                return "🟢"
 
-            styler_bench = (
-                df_view.style
-                .set_properties(subset=["Precio", "P/E", "P/B", "ROE", "Margen neto"],
-                                **{"text-align": "right"})
-                .applymap(color_pe, subset=["P/E"])
-                .applymap(color_roe, subset=["ROE"])
-            )
+            df_view.insert(3, "PE flag", df_view["P/E"].apply(pe_flag))
+            df_view.insert(7, "ROE flag", df_view["ROE"].apply(roe_flag))
 
-            st.dataframe(styler_bench, use_container_width=True, hide_index=True)
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
 
             st.markdown("---")
 
@@ -901,12 +881,7 @@ with tab_port:
                 "Fraccion Decimal": np.round(pesos_optimos, 4),
             }).sort_values(by="Fraccion Decimal", ascending=False)
 
-            styler_pesos = (
-                df_pesos.style
-                .set_properties(subset=["Ponderacion (%)", "Fraccion Decimal"],
-                                **{"text-align": "right"})
-            )
-            st.dataframe(styler_pesos, use_container_width=True, hide_index=True)
+            st.dataframe(df_pesos, use_container_width=True, hide_index=True)
 
             fig_pie = px.pie(
                 df_pesos[df_pesos["Fraccion Decimal"] > 0.001],
