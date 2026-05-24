@@ -454,6 +454,23 @@ def get_benchmark_list(info, main_ticker):
     peers = [p for p in peers if p.upper() != main_ticker.upper()]
     return peers[:4]
 
+def get_statement_df(stock, statement_type, statement_period):
+    if statement_type == "Income Statement":
+        raw = stock.income_stmt if statement_period == "Annual" else stock.quarterly_income_stmt
+    elif statement_type == "Balance Sheet":
+        raw = stock.balance_sheet if statement_period == "Annual" else stock.quarterly_balance_sheet
+    else:
+        raw = stock.cashflow if statement_period == "Annual" else stock.quarterly_cashflow
+
+    if raw is None or raw.empty:
+        return pd.DataFrame()
+
+    df = raw.copy()
+    df.columns = [pd.to_datetime(c).strftime("%Y-%m-%d") if not isinstance(c, str) else c for c in df.columns]
+    df = df.reset_index()
+    df = df.rename(columns={df.columns[0]: "Concepto"})
+    return df
+
 # =========================
 # MÉTODOS DE VALORACIÓN
 # =========================
@@ -739,10 +756,22 @@ returns = None
 # =========================
 # TABS
 # =========================
-tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
-    ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio", "Optimización de Cartera"]
+tab_emp, tab_rat, tab_fin, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
+    [
+        "Empresa",
+        "Ratios",
+        "Estados financieros",
+        "Valoración",
+        "Benchmarks",
+        "Correlaciones",
+        "Precio",
+        "Optimización de Cartera",
+    ]
 )
 
+# =========================
+# TAB EMPRESA
+# =========================
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -765,6 +794,9 @@ with tab_emp:
         ]:
             metric_card(label, val)
 
+# =========================
+# TAB RATIOS
+# =========================
 with tab_rat:
     pe = safe_float(info.get("trailingPE"))
     fwd_pe = safe_float(info.get("forwardPE"))
@@ -833,6 +865,95 @@ with tab_rat:
     style_plotly(fig_radar)
     st.plotly_chart(fig_radar, use_container_width=True)
 
+# =========================
+# TAB ESTADOS FINANCIEROS
+# =========================
+with tab_fin:
+    st.markdown('<div class="section-title">Estados financieros</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-sub">Consulta históricos anuales o trimestrales de resultados, balance y flujo de caja.</div>',
+        unsafe_allow_html=True,
+    )
+
+    f1, f2 = st.columns([1, 1])
+    with f1:
+        statement_type = st.selectbox(
+            "Tipo de estado",
+            ["Income Statement", "Balance Sheet", "Cash Flow"]
+        )
+    with f2:
+        statement_period = st.selectbox(
+            "Periodicidad",
+            ["Annual", "Quarterly"]
+        )
+
+    df_fin = get_statement_df(stock, statement_type, statement_period)
+
+    if df_fin.empty:
+        st.warning("No hay datos disponibles para este estado financiero.")
+    else:
+        cols_periods = [c for c in df_fin.columns if c != "Concepto"]
+
+        st.markdown('<div class="section-title">Tabla histórica</div>', unsafe_allow_html=True)
+        render_champagne_table(df_fin)
+
+        st.markdown('<div class="section-title" style="margin-top:1.2rem;">Comparativa visual</div>', unsafe_allow_html=True)
+
+        default_candidates = [
+            "Total Revenue",
+            "Net Income",
+            "Operating Income",
+            "EBITDA",
+            "Gross Profit",
+            "Free Cash Flow",
+            "Operating Cash Flow",
+            "Cash And Cash Equivalents",
+            "Total Assets",
+            "Total Debt",
+            "Stockholders Equity",
+        ]
+        available_concepts = df_fin["Concepto"].astype(str).tolist()
+        default_selected = [x for x in default_candidates if x in available_concepts][:4]
+        if not default_selected and len(available_concepts) > 0:
+            default_selected = available_concepts[:3]
+
+        selected_metrics = st.multiselect(
+            "Selecciona partidas para graficar",
+            options=available_concepts,
+            default=default_selected
+        )
+
+        if selected_metrics:
+            df_plot = df_fin[df_fin["Concepto"].isin(selected_metrics)].copy()
+            df_plot_long = df_plot.melt(
+                id_vars="Concepto",
+                value_vars=cols_periods,
+                var_name="Fecha",
+                value_name="Valor"
+            )
+            df_plot_long["Valor"] = pd.to_numeric(df_plot_long["Valor"], errors="coerce")
+            df_plot_long = df_plot_long.dropna(subset=["Valor"])
+
+            fig_fin = px.line(
+                df_plot_long,
+                x="Fecha",
+                y="Valor",
+                color="Concepto",
+                markers=True,
+                color_discrete_sequence=CHART_COLORS,
+            )
+            fig_fin.update_layout(height=430, yaxis_title="Valor reportado")
+            style_plotly(fig_fin)
+            st.plotly_chart(fig_fin, use_container_width=True)
+
+            with st.expander("Ver tabla interactiva adicional"):
+                st.dataframe(df_fin, use_container_width=True, hide_index=True)
+        else:
+            st.info("Selecciona al menos una partida para mostrar la comparativa.")
+
+# =========================
+# TAB VALORACIÓN
+# =========================
 with tab_val:
     st.markdown('<div class="section-title">Valoración intrínseca</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-sub">Resumen de métodos, calidad, valor intrínseco y rango de upside.</div>', unsafe_allow_html=True)
@@ -955,6 +1076,9 @@ with tab_val:
         style_plotly(fig_bar)
         st.plotly_chart(fig_bar, use_container_width=True)
 
+# =========================
+# TAB BENCHMARKS
+# =========================
 with tab_bench:
     st.markdown('<div class="section-title">Comparables del sector</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-sub">Múltiplos y rentabilidad frente a empresas de referencia.</div>', unsafe_allow_html=True)
@@ -1041,6 +1165,9 @@ with tab_bench:
             style_plotly(fig_comp)
             st.plotly_chart(fig_comp, use_container_width=True)
 
+# =========================
+# TAB CORRELACIONES
+# =========================
 with tab_corr:
     st.markdown('<div class="section-title">Correlación de rentabilidades</div>', unsafe_allow_html=True)
 
@@ -1075,6 +1202,9 @@ with tab_corr:
         style_plotly(fig_cum)
         st.plotly_chart(fig_cum, use_container_width=True)
 
+# =========================
+# TAB PRECIO
+# =========================
 with tab_price:
     st.markdown('<div class="section-title">Histórico de precio y volumen</div>', unsafe_allow_html=True)
     if hist is None or hist.empty:
@@ -1113,6 +1243,9 @@ with tab_price:
         style_plotly(fig_price)
         st.plotly_chart(fig_price, use_container_width=True)
 
+# =========================
+# TAB CARTERA
+# =========================
 with tab_port:
     st.markdown('<div class="section-title">Optimización de Cartera de Markowitz</div>', unsafe_allow_html=True)
 
