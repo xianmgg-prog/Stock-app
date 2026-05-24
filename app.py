@@ -135,7 +135,6 @@ TEXTS = {
         "interpretation": "Interpretación",
         "language": "Idioma",
         "score": "Score",
-        "assumptions": "Supuestos",
     },
     "EN": {
         "hero_title": "Equity Terminal",
@@ -211,19 +210,16 @@ TEXTS = {
         "interpretation": "Interpretation",
         "language": "Language",
         "score": "Score",
-        "assumptions": "Assumptions",
     },
 }
 
 # =========================
-# CSS GLOBAL CHAMPAGNE
+# CSS
 # =========================
 st.markdown(
     f"""
     <style>
-    [data-testid="collapsedControl"] {{
-        display: none;
-    }}
+    [data-testid="collapsedControl"] {{ display: none; }}
 
     .block-container {{
         padding-top: 2rem;
@@ -347,9 +343,7 @@ st.markdown(
         box-shadow: 0 8px 22px rgba(182, 138, 82, 0.22);
     }}
 
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 0.35rem;
-    }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 0.35rem; }}
 
     .stTabs [data-baseweb="tab"] {{
         background: rgba(255, 251, 245, 0.95);
@@ -371,19 +365,6 @@ st.markdown(
         border: 1px solid {BORDER} !important;
         border-radius: 16px !important;
         background: rgba(255,253,249,0.7) !important;
-    }}
-
-    .section-title {{
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: {TEXT_PRIMARY};
-        margin-bottom: 0.7rem;
-    }}
-
-    .section-sub {{
-        color: {TEXT_SECONDARY};
-        font-size: 0.92rem;
-        margin-bottom: 0.8rem;
     }}
 
     .champ-table-wrap {{
@@ -604,14 +585,20 @@ def get_benchmark_list(info, main_ticker):
 def format_financial_df(df):
     if df is None or df.empty:
         return None
+
     out = df.copy()
+
     try:
         out = out.iloc[:, :6]
     except Exception:
         pass
+
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
-    out = out.applymap(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
+
+    # FIX pandas 3.x: applymap eliminado, usar map
+    out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
+
     out.reset_index(inplace=True)
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
     return out
@@ -622,18 +609,18 @@ def format_financial_df(df):
 def compute_valuations(info, currency):
     methods = []
 
-    price   = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
-    shares  = safe_float(info.get("sharesOutstanding"))
-    fcf     = safe_float(info.get("freeCashflow"))
+    price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
+    shares = safe_float(info.get("sharesOutstanding"))
+    fcf = safe_float(info.get("freeCashflow"))
     revenue = safe_float(info.get("totalRevenue"))
-    ebitda  = safe_float(info.get("ebitda"))
-    ebit    = safe_float(info.get("ebit"))
-    bvps    = safe_float(info.get("bookValue"))
-    eps     = safe_float(info.get("trailingEps"))
+    ebitda = safe_float(info.get("ebitda"))
+    ebit = safe_float(info.get("ebit"))
+    bvps = safe_float(info.get("bookValue"))
+    eps = safe_float(info.get("trailingEps"))
     fwd_eps = safe_float(info.get("forwardEps"))
-    div     = safe_float(info.get("dividendRate"))
+    div = safe_float(info.get("dividendRate"))
     total_debt = safe_float(info.get("totalDebt"), 0.0)
-    cash    = safe_float(info.get("totalCash"), 0.0)
+    cash = safe_float(info.get("totalCash"), 0.0)
     net_income = safe_float(info.get("netIncomeToCommon"))
 
     def dcf_model(fcf0, g_high, g_low, r, label, calidad, origen):
@@ -669,7 +656,7 @@ def compute_valuations(info, currency):
             usado = f"{origen} · growth {g_high*100:.0f}% → {g_low*100:.0f}% · discount {r*100:.0f}%"
 
         methods.append({
-            "Método": label if lang == "ES" else label,
+            "Método": label,
             "Tipo": "DCF",
             "Calidad": calidad if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(calidad, calidad),
             "Valor": valor_accion,
@@ -762,7 +749,7 @@ def compute_valuations(info, currency):
                 "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "Qué se usó": "Ventas × {} ÷ acciones".format(mult) if lang == "ES" else f"Sales × {mult} ÷ shares",
+                "Qué se usó": f"Ventas × {mult} ÷ acciones" if lang == "ES" else f"Sales × {mult} ÷ shares",
                 "Detalle": detalle,
             })
 
@@ -859,7 +846,7 @@ def compute_valuations(info, currency):
     return methods, price
 
 # =========================
-# HERO + LANGUAGE
+# HEADER + LANGUAGE
 # =========================
 top1, top2 = st.columns([5, 1])
 with top2:
@@ -868,6 +855,7 @@ with top2:
         options=["ES", "EN"],
         key="language"
     )
+
 lang = st.session_state.language
 T = TEXTS[lang]
 
@@ -918,13 +906,13 @@ with st.expander(T["options"], expanded=False):
         corr_tickers_input = st.text_input(
             T["corr_input"],
             value="AAPL, MSFT, GOOGL, AMZN, META",
+            key="corr_input_box"
         )
 
 if "period_select" not in st.session_state:
     st.session_state.period_select = "3y"
 period = st.session_state.period_select
-if "corr_tickers_input" not in locals():
-    corr_tickers_input = "AAPL, MSFT, GOOGL, AMZN, META"
+corr_tickers_input = st.session_state.get("corr_input_box", "AAPL, MSFT, GOOGL, AMZN, META")
 
 # =========================
 # WELCOME
@@ -955,8 +943,8 @@ active_ticker = st.session_state.analyzed_ticker
 with st.spinner(f'{T["loading"]} {active_ticker}...'):
     try:
         stock = yf.Ticker(active_ticker)
-        info  = stock.info
-        hist  = stock.history(period=period)
+        info = stock.info
+        hist = stock.history(period=period)
         financials = stock.financials
         balance_sheet = stock.balance_sheet
         cashflow = stock.cashflow
@@ -1083,7 +1071,14 @@ with tab_rat:
             return 0.0
         return max(0.0, min(1.0, (v2 - lo) / (hi - lo)))
 
-    radar_labels = ["ROE", "ROA", "Net Margin" if lang == "EN" else "Margen neto", "Low P/E" if lang == "EN" else "P/E bajo", "Low Debt" if lang == "EN" else "Deuda baja", "Liquidity" if lang == "EN" else "Liquidez"]
+    radar_labels = [
+        "ROE",
+        "ROA",
+        "Net Margin" if lang == "EN" else "Margen neto",
+        "Low P/E" if lang == "EN" else "P/E bajo",
+        "Low Debt" if lang == "EN" else "Deuda baja",
+        "Liquidity" if lang == "EN" else "Liquidez"
+    ]
     radar_values = [
         norm(roe*100 if roe else None, 0, 40),
         norm(roa*100 if roa else None, 0, 20),
@@ -1191,7 +1186,6 @@ with tab_val:
         render_champagne_table(df_tabla, pills_cols=[T["quality"], T["interpretation"]])
 
         st.markdown("---")
-
         upsides = df_val["Upside %"].dropna()
         m1, m2, m3, m4 = st.columns(4)
         with m1:
@@ -1294,22 +1288,11 @@ with tab_bench:
 
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
             fig_comp.add_trace(
-                go.Bar(
-                    x=df_bench["Ticker"],
-                    y=df_bench["P/E"],
-                    name="P/E",
-                    marker_color=ACCENT_GOLD,
-                ),
+                go.Bar(x=df_bench["Ticker"], y=df_bench["P/E"], name="P/E", marker_color=ACCENT_GOLD),
                 secondary_y=False,
             )
             fig_comp.add_trace(
-                go.Scatter(
-                    x=df_bench["Ticker"],
-                    y=df_bench["ROE"] * 100,
-                    name="ROE (%)",
-                    mode="lines+markers",
-                    line_color=ACCENT_GREEN,
-                ),
+                go.Scatter(x=df_bench["Ticker"], y=df_bench["ROE"] * 100, name="ROE (%)", mode="lines+markers", line_color=ACCENT_GREEN),
                 secondary_y=True,
             )
             fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
