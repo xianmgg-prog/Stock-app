@@ -7,15 +7,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
 import math
-import datetime as dt
 from scipy.optimize import minimize
-from deep_translator import GoogleTranslator
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
 # =========================
 st.set_page_config(
-    page_title="Equity Terminal — Value Investing",
+    page_title="Equity Terminal — Champagne Edition",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -25,359 +23,304 @@ if "analyzed_ticker" not in st.session_state:
     st.session_state.analyzed_ticker = None
 if "current_query" not in st.session_state:
     st.session_state.current_query = ""
-if "lang" not in st.session_state:
-    st.session_state.lang = "es"
 
 # =========================
-# IDIOMAS
+# PALETA CHAMPAGNE
 # =========================
-LANG_OPTIONS = {
-    "Español": "es",
-    "English": "en",
-}
+ACCENT_GOLD = "#B68A52"
+ACCENT_GOLD_SOFT = "#D6B98C"
+ACCENT_GREEN = "#5E8B6F"
+ACCENT_RED = "#B85C5C"
 
-TEXTS = {
-    "es": {
-        "hero_sub": "Value Investing · Análisis fundamental de empresas cotizadas",
-        "search_placeholder": "🔎 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
-        "analyze": "Analizar →",
-        "options": "⚙️ Opciones de análisis",
-        "period": "Período histórico",
-        "corr_input": "Tickers para correlación y cartera (separados por comas)",
-        "language": "Idioma",
-        "welcome_1": "Introduce el nombre o ticker de una empresa y pulsa",
-        "welcome_2": "Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
-        "company": "Empresa",
-        "ratios": "Ratios",
-        "valuation": "Valoración",
-        "statements": "Estados contables",
-        "benchmarks": "Benchmarks",
-        "correlations": "Correlaciones",
-        "price": "Precio",
-        "portfolio": "Optimización de cartera",
-        "news": "Noticias",
-        "business_description": "Descripción del negocio",
-        "corporate_data": "Datos corporativos",
-        "country": "País",
-        "city": "Ciudad",
-        "exchange": "Bolsa",
-        "employees": "Empleados",
-        "sector": "Sector",
-        "industry": "Industria",
-        "no_description": "No hay descripción disponible.",
-        "relevant_news": "Noticias relevantes",
-        "company_news": "Noticias de la empresa",
-        "market_news": "Noticias generales de mercado",
-        "read_more": "Leer noticia completa",
-        "no_news": "No se han encontrado noticias con la configuración actual.",
-        "no_api_key": "No se ha configurado la clave NEWS_API_KEY en Secrets.",
-        "loading_news": "Cargando noticias...",
-        "loading_data": "Cargando datos de",
-        "market_cap": "Capitalización bursátil",
-        "high_52w": "Máximo 52 semanas",
-        "low_52w": "Mínimo 52 semanas",
-        "beta": "Beta",
-        "market_valuation": "Valoración de mercado",
-        "profitability": "Rentabilidad",
-        "risk_liquidity": "Riesgo y liquidez",
-        "trailing_pe": "PER (12 meses)",
-        "forward_pe": "PER adelantado",
-        "pb": "P/Valor contable",
-        "ps": "P/Ventas",
-        "roe": "ROE",
-        "roa": "ROA",
-        "gross_margin": "Margen bruto",
-        "net_margin": "Margen neto",
-        "debt_equity": "Deuda/Patrimonio",
-        "current_ratio": "Ratio corriente",
-        "quick_ratio": "Quick ratio",
-        "dividend_yield": "Rentabilidad por dividendo",
-        "financial_profile": "Perfil financiero (radar)",
-        "intrinsic_valuation": "Valoración intrínseca — todos los métodos",
-        "insufficient_valuation_data": "No se pudieron calcular valoraciones por falta de datos.",
-        "methods_calculated": "Métodos calculados",
-        "median_upside": "Upside mediano",
-        "mean_upside": "Upside medio",
-        "upside_range": "Rango de upside",
-        "how_calculated": "Cómo se calcula cada método",
-        "quality": "Calidad",
-        "intrinsic_value": "Valor intrínseco",
-        "current_price": "Precio actual",
-        "interpretation": "Interpretación",
-        "calculation": "Cálculo",
-        "sector_benchmarks": "Comparación con benchmarks del sector",
-        "no_benchmarks": "No hay benchmarks definidos para este sector.",
-        "benchmarks_error": "No se pudieron cargar datos de benchmarks.",
-        "correlation_returns": "Correlación de rentabilidades",
-        "correlation_matrix": "Matriz de correlación",
-        "cumulative_returns": "Retornos acumulados",
-        "historical_price_volume": "Histórico de precio y volumen",
-        "no_historical_data": "No hay datos históricos disponibles.",
-        "markowitz": "Optimización de cartera de Markowitz",
-        "optimize_selection": "Configura las variables para optimizar tu selección actual de activos.",
-        "optimizer_goal": "Objetivo del optimizador",
-        "maximize_sharpe": "Maximizar ratio Sharpe",
-        "min_variance": "Minimizar varianza",
-        "risk_free_rate": "Tasa libre de riesgo anualizada (%)",
-        "optimal_metrics": "Métricas de la cartera óptima",
-        "expected_return": "Rentabilidad esperada anual",
-        "portfolio_volatility": "Volatilidad de la cartera",
-        "sharpe_ratio": "Ratio Sharpe",
-        "optimizer_error": "El algoritmo de optimización no pudo converger en una solución válida.",
-        "insufficient_hist_data": "Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.",
-        "suggestions": "Sugerencias",
-        "description": "Descripción",
-        "ohlc": "OHLC",
-        "volume": "Volumen",
-        "price_error": "No se pudo obtener el precio de mercado. Verifica el ticker.",
-        "data_error": "Error al obtener datos",
-        "very_undervalued": "Muy infravalorada",
-        "undervalued": "Infravalorada",
-        "fairly_valued": "En línea",
-        "overvalued": "Sobrevalorada",
-        "very_overvalued": "Muy sobrevalorada",
-        "news_info_header": "Se muestran noticias de la empresa y del mercado.",
-        "income_statement": "Cuenta de resultados",
-        "balance_sheet": "Balance",
-        "cash_flow": "Flujo de caja",
-        "annual": "Anual",
-        "quarterly": "Trimestral",
-        "statement_type": "Tipo de estado",
-        "statement_period": "Período",
-        "no_statement_data": "No hay datos disponibles para este estado contable.",
-        "financial_statements": "Estados contables",
-        "download_ready": "Tabla interactiva disponible",
-        "comparison_view": "Vista comparativa",
-        "select_metrics": "Selecciona métricas para comparar",
-        "available_years": "Años/fechas disponibles",
-        "statement_chart": "Evolución histórica de partidas",
-        "no_metrics_selected": "Selecciona al menos una partida para visualizar la comparación.",
-        "comparison_table": "Tabla histórica comparativa",
-        "top_lines": "Partidas principales",
-        "concept": "Concepto",
-        "official_filings": "Informes oficiales",
-        "filing_source": "Fuente del informe",
-        "sec_source": "SEC (EEUU)",
-        "cnmv_source": "CNMV (España)",
-        "filing_type": "Tipo de informe",
-        "lookup_filing": "Buscar informe",
-        "download_sec_filing": "Descargar documento SEC",
-        "open_document": "Abrir documento",
-        "enter_cik": "CIK de la compañía (10 dígitos, opcional si existe mapeo)",
-        "filing_found": "Informe localizado",
-        "filing_not_found": "No se encontró un informe reciente de ese tipo.",
-        "sec_error": "Error al consultar la SEC",
-        "cnmv_info": "La CNMV publica los informes financieros en su portal oficial.",
-        "open_cnmv": "Abrir buscador CNMV",
-        "using_mapped_cik": "Usando CIK mapeado automáticamente",
-        "invalid_cik": "Introduce un CIK válido.",
-        "direct_download_failed": "No se pudo descargar el documento directamente.",
-    },
-    "en": {
-        "hero_sub": "Value Investing · Fundamental analysis of listed companies",
-        "search_placeholder": "🔎 Search for a company or ticker (e.g. Apple, AAPL, Stellantis, TEF.MC...)",
-        "analyze": "Analyze →",
-        "options": "⚙️ Analysis options",
-        "period": "Historical period",
-        "corr_input": "Tickers for correlation and portfolio (comma separated)",
-        "language": "Language",
-        "welcome_1": "Enter a company name or ticker and click",
-        "welcome_2": "Examples: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
-        "company": "Company",
-        "ratios": "Ratios",
-        "valuation": "Valuation",
-        "statements": "Financial statements",
-        "benchmarks": "Benchmarks",
-        "correlations": "Correlations",
-        "price": "Price",
-        "portfolio": "Portfolio optimization",
-        "news": "News",
-        "business_description": "Business description",
-        "corporate_data": "Corporate data",
-        "country": "Country",
-        "city": "City",
-        "exchange": "Exchange",
-        "employees": "Employees",
-        "sector": "Sector",
-        "industry": "Industry",
-        "no_description": "No description available.",
-        "relevant_news": "Relevant news",
-        "company_news": "Company news",
-        "market_news": "General market news",
-        "read_more": "Read full article",
-        "no_news": "No news was found with the current settings.",
-        "no_api_key": "NEWS_API_KEY has not been configured in Secrets.",
-        "loading_news": "Loading news...",
-        "loading_data": "Loading data for",
-        "market_cap": "Market cap",
-        "high_52w": "52W high",
-        "low_52w": "52W low",
-        "beta": "Beta",
-        "market_valuation": "Market valuation",
-        "profitability": "Profitability",
-        "risk_liquidity": "Risk and liquidity",
-        "trailing_pe": "P/E (TTM)",
-        "forward_pe": "Forward P/E",
-        "pb": "P/Book",
-        "ps": "P/Sales",
-        "roe": "ROE",
-        "roa": "ROA",
-        "gross_margin": "Gross margin",
-        "net_margin": "Net margin",
-        "debt_equity": "Debt/Equity",
-        "current_ratio": "Current ratio",
-        "quick_ratio": "Quick ratio",
-        "dividend_yield": "Dividend yield",
-        "financial_profile": "Financial profile (radar)",
-        "intrinsic_valuation": "Intrinsic valuation — all methods",
-        "insufficient_valuation_data": "Valuations could not be calculated due to insufficient data.",
-        "methods_calculated": "Methods calculated",
-        "median_upside": "Median upside",
-        "mean_upside": "Mean upside",
-        "upside_range": "Upside range",
-        "how_calculated": "How each method is calculated",
-        "quality": "Quality",
-        "intrinsic_value": "Intrinsic value",
-        "current_price": "Current price",
-        "interpretation": "Interpretation",
-        "calculation": "Calculation",
-        "sector_benchmarks": "Sector benchmark comparison",
-        "no_benchmarks": "No benchmarks defined for this sector.",
-        "benchmarks_error": "Benchmark data could not be loaded.",
-        "correlation_returns": "Return correlations",
-        "correlation_matrix": "Correlation matrix",
-        "cumulative_returns": "Cumulative returns",
-        "historical_price_volume": "Historical price and volume",
-        "no_historical_data": "No historical data available.",
-        "markowitz": "Markowitz portfolio optimization",
-        "optimize_selection": "Configure the variables to optimize your current asset selection.",
-        "optimizer_goal": "Optimizer goal",
-        "maximize_sharpe": "Maximize Sharpe ratio",
-        "min_variance": "Minimize variance",
-        "risk_free_rate": "Annualized risk-free rate (%)",
-        "optimal_metrics": "Optimal portfolio metrics",
-        "expected_return": "Expected annual return",
-        "portfolio_volatility": "Portfolio volatility",
-        "sharpe_ratio": "Sharpe ratio",
-        "optimizer_error": "The optimization algorithm could not converge to a valid solution.",
-        "insufficient_hist_data": "Insufficient historical data. Make sure the tickers are configured correctly in the options above.",
-        "suggestions": "Suggestions",
-        "description": "Description",
-        "ohlc": "OHLC",
-        "volume": "Volume",
-        "price_error": "Could not retrieve market price. Check the ticker.",
-        "data_error": "Error retrieving data",
-        "very_undervalued": "Very undervalued",
-        "undervalued": "Undervalued",
-        "fairly_valued": "Fairly valued",
-        "overvalued": "Overvalued",
-        "very_overvalued": "Very overvalued",
-        "news_info_header": "Company and market news are shown.",
-        "income_statement": "Income statement",
-        "balance_sheet": "Balance sheet",
-        "cash_flow": "Cash flow",
-        "annual": "Annual",
-        "quarterly": "Quarterly",
-        "statement_type": "Statement type",
-        "statement_period": "Period",
-        "no_statement_data": "No data available for this financial statement.",
-        "financial_statements": "Financial statements",
-        "download_ready": "Interactive table available",
-        "comparison_view": "Comparison view",
-        "select_metrics": "Select metrics to compare",
-        "available_years": "Available years/dates",
-        "statement_chart": "Historical trend of line items",
-        "no_metrics_selected": "Select at least one line item to visualize the comparison.",
-        "comparison_table": "Historical comparison table",
-        "top_lines": "Main line items",
-        "concept": "Concept",
-        "official_filings": "Official filings",
-        "filing_source": "Filing source",
-        "sec_source": "SEC (US)",
-        "cnmv_source": "CNMV (Spain)",
-        "filing_type": "Filing type",
-        "lookup_filing": "Search filing",
-        "download_sec_filing": "Download SEC document",
-        "open_document": "Open document",
-        "enter_cik": "Company CIK (10 digits, optional if mapping exists)",
-        "filing_found": "Filing found",
-        "filing_not_found": "No recent filing of that type was found.",
-        "sec_error": "Error while querying the SEC",
-        "cnmv_info": "CNMV publishes financial reports in its official portal.",
-        "open_cnmv": "Open CNMV search",
-        "using_mapped_cik": "Using automatically mapped CIK",
-        "invalid_cik": "Enter a valid CIK.",
-        "direct_download_failed": "The document could not be downloaded directly.",
-    },
-}
+BG_MAIN = "#F7F1E8"
+BG_GRAD_1 = "#F3E7D7"
+BG_GRAD_2 = "#EADBC8"
 
-def tr(key):
-    return TEXTS[st.session_state.lang].get(key, key)
+CARD_BG = "#FFFDF9"
+CARD_BG_2 = "#F9F4EC"
+BORDER = "#D9C8B4"
+
+TEXT_PRIMARY = "#2F241B"
+TEXT_SECONDARY = "#7A6856"
+TEXT_FAINT = "#A08F7C"
+
+TABLE_HEADER_BG = "#EFE2D2"
+TABLE_ROW_BG = "#FFFDF9"
+TABLE_ALT_BG = "#FAF5EE"
+TABLE_BORDER = "#D8C7B2"
+
+CHART_COLORS = [
+    "#B68A52",
+    "#8C6A43",
+    "#5E8B6F",
+    "#A47E5B",
+    "#C2A27B",
+]
 
 # =========================
-# COLORES Y ESTILOS CSS
+# CSS GLOBAL
 # =========================
-ACCENT_BLUE = "#38BDF8"
-ACCENT_GREEN = "#22C55E"
-ACCENT_RED = "#EF4444"
-TEXT_PRIMARY = "#E5E7EB"
-TEXT_SECONDARY = "#9CA3AF"
-CARD_BG = "#111827"
-BORDER = "#1F2937"
-
 st.markdown(
     f"""
     <style>
-    [data-testid="collapsedControl"] {{ display: none; }}
+    :root {{
+        --accent-gold: {ACCENT_GOLD};
+        --accent-gold-soft: {ACCENT_GOLD_SOFT};
+        --accent-green: {ACCENT_GREEN};
+        --accent-red: {ACCENT_RED};
+
+        --bg-main: {BG_MAIN};
+        --bg-grad-1: {BG_GRAD_1};
+        --bg-grad-2: {BG_GRAD_2};
+
+        --card-bg: {CARD_BG};
+        --card-bg-2: {CARD_BG_2};
+        --border: {BORDER};
+
+        --text-primary: {TEXT_PRIMARY};
+        --text-secondary: {TEXT_SECONDARY};
+        --text-faint: {TEXT_FAINT};
+
+        --table-header-bg: {TABLE_HEADER_BG};
+        --table-row-bg: {TABLE_ROW_BG};
+        --table-alt-bg: {TABLE_ALT_BG};
+        --table-border: {TABLE_BORDER};
+    }}
+
+    [data-testid="collapsedControl"] {{
+        display: none;
+    }}
+
     .block-container {{
         padding-top: 2rem;
         padding-bottom: 2rem;
-        max-width: 1300px;
+        max-width: 1320px;
     }}
+
     .stApp {{
-        background: radial-gradient(circle at top left, #111827 0, #020617 55%);
-        color: {TEXT_PRIMARY};
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        background: radial-gradient(circle at top left, var(--bg-grad-1) 0%, var(--bg-main) 45%, var(--bg-grad-2) 100%);
+        color: var(--text-primary);
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     }}
+
+    h1, h2, h3, h4, h5, h6, p, span, label, div {{
+        color: var(--text-primary);
+    }}
+
+    .hero-wrap {{
+        padding: 1.2rem 0 1.8rem 0;
+        text-align: center;
+    }}
+
     .hero-title {{
-        font-size: 2.8rem;
+        font-size: 2.9rem;
         font-weight: 800;
-        letter-spacing: 0.03em;
-        text-align: center;
-        background: linear-gradient(90deg, {ACCENT_BLUE}, {ACCENT_GREEN});
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
+        letter-spacing: 0.02em;
+        color: var(--text-primary);
+        margin-bottom: 0.35rem;
     }}
+
     .hero-sub {{
-        text-align: center;
-        color: {TEXT_SECONDARY};
-        font-size: 1rem;
-        letter-spacing: 0.06em;
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        margin-bottom: 1rem;
     }}
+
+    .soft-divider {{
+        height: 1px;
+        width: 100%;
+        background: linear-gradient(90deg, transparent, var(--border), transparent);
+        margin: 1.25rem 0 1.75rem 0;
+    }}
+
     .metric-card {{
-        background: {CARD_BG};
-        border-radius: 10px;
-        padding: 0.8rem 1rem;
-        border: 1px solid {BORDER};
-        margin-bottom: 0.4rem;
+        background: linear-gradient(180deg, var(--card-bg) 0%, var(--card-bg-2) 100%);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1rem 1rem 0.95rem 1rem;
+        box-shadow: 0 8px 24px rgba(120, 93, 61, 0.06);
+        margin-bottom: 0.5rem;
     }}
+
     .metric-label {{
-        color: {TEXT_SECONDARY};
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        margin-bottom: 0.25rem;
+    }}
+
+    .metric-value {{
+        color: var(--text-primary);
+        font-size: 1.15rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }}
+
+    .metric-sub {{
+        color: var(--text-secondary);
         font-size: 0.75rem;
+        margin-top: 0.18rem;
+    }}
+
+    .company-header {{
+        background: linear-gradient(180deg, rgba(255,253,249,0.92) 0%, rgba(249,244,236,0.92) 100%);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 1.2rem 1.25rem;
+        margin: 0.7rem 0 1rem 0;
+        box-shadow: 0 10px 30px rgba(120, 93, 61, 0.05);
+    }}
+
+    .company-name {{
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: var(--text-primary);
+    }}
+
+    .company-meta {{
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        margin-top: 0.15rem;
+    }}
+
+    .company-price {{
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--accent-gold);
+        margin-top: 0.55rem;
+    }}
+
+    .stTextInput input, .stNumberInput input {{
+        background: rgba(255, 253, 249, 0.96) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 14px !important;
+    }}
+
+    .stSelectbox div[data-baseweb="select"] > div {{
+        background: rgba(255, 253, 249, 0.96) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 14px !important;
+    }}
+
+    .stButton > button {{
+        background: linear-gradient(180deg, var(--accent-gold-soft) 0%, var(--accent-gold) 100%);
+        color: white !important;
+        border: none !important;
+        border-radius: 14px !important;
+        font-weight: 700 !important;
+        padding: 0.72rem 1rem !important;
+        box-shadow: 0 8px 22px rgba(182, 138, 82, 0.22);
+    }}
+
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 0.35rem;
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        background: rgba(255, 251, 245, 0.95);
+        border: 1px solid var(--border);
+        border-radius: 12px 12px 0 0;
+        color: var(--text-secondary);
+        padding: 0.75rem 1.1rem;
+        font-size: 0.92rem;
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        background: var(--card-bg) !important;
+        color: var(--text-primary) !important;
+        border-bottom-color: var(--card-bg) !important;
+        font-weight: 700 !important;
+    }}
+
+    .stExpander {{
+        border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        background: rgba(255,253,249,0.7) !important;
+    }}
+
+    .champ-table-wrap {{
+        background: var(--card-bg);
+        border: 1px solid var(--table-border);
+        border-radius: 18px;
+        overflow-x: auto;
+        box-shadow: 0 10px 28px rgba(120, 93, 61, 0.05);
+        margin-top: 0.5rem;
+    }}
+
+    .champ-table {{
+        width: 100%;
+        min-width: 900px;
+        border-collapse: collapse;
+        font-size: 0.93rem;
+    }}
+
+    .champ-table thead th {{
+        background: var(--table-header-bg);
+        color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        margin-bottom: 0.2rem;
+        font-size: 0.73rem;
+        text-align: left;
+        padding: 0.95rem 0.9rem;
+        border-bottom: 1px solid var(--table-border);
+        white-space: nowrap;
     }}
-    .metric-value {{
-        font-size: 1.1rem;
-        font-weight: 600;
+
+    .champ-table tbody td {{
+        padding: 0.88rem 0.9rem;
+        border-bottom: 1px solid rgba(216, 199, 178, 0.55);
+        color: var(--text-primary);
+        background: var(--table-row-bg);
+        white-space: nowrap;
     }}
-    .stTabs [data-baseweb="tab"] {{
-        font-size: 0.9rem;
-        padding: 0.75rem 1.25rem;
+
+    .champ-table tbody tr:nth-child(even) td {{
+        background: var(--table-alt-bg);
+    }}
+
+    .champ-table tbody tr:hover td {{
+        background: #F4EBDD;
+    }}
+
+    .pill {{
+        display: inline-block;
+        padding: 0.28rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }}
+
+    .pill-gold {{
+        background: rgba(182, 138, 82, 0.14);
+        color: #8B6738;
+    }}
+
+    .pill-green {{
+        background: rgba(94, 139, 111, 0.14);
+        color: #41614E;
+    }}
+
+    .pill-red {{
+        background: rgba(184, 92, 92, 0.14);
+        color: #8A4444;
+    }}
+
+    .section-title {{
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: var(--text-primary);
+        margin-bottom: 0.7rem;
+    }}
+
+    .section-sub {{
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+        margin-bottom: 0.8rem;
     }}
     </style>
     """,
@@ -420,13 +363,60 @@ def fmt_large(x):
         return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
 
-def traducir_texto(texto):
-    if not texto:
-        return ""
-    try:
-        return GoogleTranslator(source="auto", target=st.session_state.lang).translate(texto)
-    except Exception:
-        return texto
+def metric_card(label, value, sub=None):
+    sub_html = f'<div class="metric-sub">{sub}</div>' if sub else ""
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            {sub_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_company_header(company_name, ticker, sector, industry, currency, price, delta_html=""):
+    st.markdown(
+        f"""
+        <div class="company-header">
+            <div class="company-name">{company_name}</div>
+            <div class="company-meta">{ticker} · {sector} · {industry} · {currency}</div>
+            <div class="company-price">{price:.2f} {currency} {delta_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def render_champagne_table(df: pd.DataFrame, pills_cols=None):
+    pills_cols = pills_cols or []
+
+    def pill_class(val):
+        v = str(val).lower()
+        if any(x in v for x in ["alta", "muy infravalorado", "infravalorado", "buy", "+"]):
+            return "pill pill-green"
+        if any(x in v for x in ["baja", "muy sobrevalorado", "sobrevalorado", "sell"]):
+            return "pill pill-red"
+        return "pill pill-gold"
+
+    html = '<div class="champ-table-wrap"><table class="champ-table"><thead><tr>'
+    for col in df.columns:
+        html += f"<th>{col}</th>"
+    html += "</tr></thead><tbody>"
+
+    for _, row in df.iterrows():
+        html += "<tr>"
+        for col in df.columns:
+            val = row[col]
+            display = "N/A" if pd.isna(val) else str(val)
+            if col in pills_cols:
+                html += f'<td><span class="{pill_class(display)}">{display}</span></td>'
+            else:
+                html += f"<td>{display}</td>"
+        html += "</tr>"
+
+    html += "</tbody></table></div>"
+    st.markdown(html, unsafe_allow_html=True)
 
 def search_ticker(query: str):
     if not query:
@@ -450,31 +440,6 @@ def search_ticker(query: str):
     except Exception:
         return []
 
-def format_financial_df(df):
-    if df is None or df.empty:
-        return pd.DataFrame(), []
-
-    df = df.copy()
-
-    try:
-        ordered_cols = sorted(df.columns, reverse=False)
-        df = df[ordered_cols]
-        formatted_cols = [pd.to_datetime(c).strftime("%Y-%m-%d") for c in df.columns]
-        df.columns = formatted_cols
-    except Exception:
-        df.columns = [str(c) for c in df.columns]
-
-    available_periods = list(df.columns)
-
-    df = df.reset_index()
-    first_col = df.columns[0]
-    df = df.rename(columns={first_col: tr("concept")})
-
-    for col in df.columns[1:]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df, available_periods
-
 DEFAULT_BENCHMARKS = {
     "Technology": ["AAPL", "MSFT", "GOOGL", "META", "AMZN"],
     "Communication Services": ["GOOGL", "META", "NFLX", "DIS"],
@@ -489,88 +454,8 @@ def get_benchmark_list(info, main_ticker):
     peers = [p for p in peers if p.upper() != main_ticker.upper()]
     return peers[:4]
 
-def get_company_news(api_key, active_ticker, company_name):
-    desde = (dt.datetime.utcnow() - dt.timedelta(days=3)).strftime("%Y-%m-%d")
-    query = f'"{active_ticker}" OR "{company_name}"'
-    params = {
-        "q": query,
-        "from": desde,
-        "sortBy": "publishedAt",
-        "pageSize": 10,
-        "apiKey": api_key,
-    }
-    try:
-        resp = requests.get("https://newsapi.org/v2/everything", params=params, timeout=15)
-        data = resp.json()
-        if data.get("status") == "ok":
-            return data.get("articles", [])
-        return []
-    except Exception:
-        return []
-
-def get_market_news(api_key):
-    try:
-        resp = requests.get(
-            "https://newsapi.org/v2/top-headlines",
-            params={
-                "country": "us",
-                "category": "business",
-                "pageSize": 10,
-                "apiKey": api_key,
-            },
-            timeout=15,
-        )
-        data = resp.json()
-        if data.get("status") == "ok":
-            return data.get("articles", [])
-        return []
-    except Exception:
-        return []
-
-SEC_TICKER_CIK = {
-    "AAPL": "0000320193",
-    "MSFT": "0000789019",
-    "GOOGL": "0001652044",
-    "AMZN": "0001018724",
-    "META": "0001326801",
-    "TSLA": "0001318605",
-    "NVDA": "0001045810",
-    "BRK-B": "0001067983",
-    "JPM": "0000019617",
-    "KO": "0000021344",
-}
-
-def get_sec_latest_filing(cik, form_type, user_agent="Your Name your@email.com"):
-    headers = {"User-Agent": user_agent}
-    cik = str(cik).zfill(10)
-
-    url_sub = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    resp = requests.get(url_sub, headers=headers, timeout=20)
-    resp.raise_for_status()
-    data = resp.json()
-
-    filings = data.get("filings", {}).get("recent", {})
-    forms = filings.get("form", [])
-    accessions = filings.get("accessionNumber", [])
-    primary_docs = filings.get("primaryDocument", [])
-    filing_dates = filings.get("filingDate", [])
-
-    for form, acc, doc, fdate in zip(forms, accessions, primary_docs, filing_dates):
-        if form == form_type:
-            acc_nodash = acc.replace("-", "")
-            cik_int = str(int(cik))
-            doc_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_nodash}/{doc}"
-            return {
-                "form": form,
-                "date": fdate,
-                "url": doc_url,
-                "accession": acc,
-            }
-
-    return None
-
 # =========================
-# VALORACIÓN
+# MÉTODOS DE VALORACIÓN
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -678,6 +563,14 @@ def compute_valuations(info, currency):
             "Valor": graham,
             "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
         })
+        graham_adj = math.sqrt(15 * eps_use * bvps)
+        methods.append({
+            "Método": "Graham Ajustado (15×)",
+            "Tipo": "Mixto",
+            "Calidad": "Media",
+            "Valor": graham_adj,
+            "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
+        })
 
     if div and div > 0:
         for g_div, r_div, label_div in [
@@ -705,32 +598,49 @@ def compute_valuations(info, currency):
 
     return methods, price
 
-# =========================
-# CABECERA
-# =========================
-st.markdown('<div class="hero-title">📊 Equity Terminal</div>', unsafe_allow_html=True)
-
-lang_col1, lang_col2, lang_col3 = st.columns([4, 1.2, 0.8])
-with lang_col2:
-    current_label = "Español" if st.session_state.lang == "es" else "English"
-    selected_lang_label = st.selectbox(
-        tr("language"),
-        options=list(LANG_OPTIONS.keys()),
-        index=list(LANG_OPTIONS.keys()).index(current_label),
+def style_plotly(fig):
+    fig.update_layout(
+        paper_bgcolor="rgba(255,255,255,0)",
+        plot_bgcolor="#FFFDF9",
+        font=dict(color=TEXT_PRIMARY),
+        title_font=dict(color=TEXT_PRIMARY),
+        legend=dict(bgcolor="rgba(255,255,255,0)", bordercolor=BORDER),
     )
-    st.session_state.lang = LANG_OPTIONS[selected_lang_label]
+    fig.update_xaxes(
+        showgrid=False,
+        linecolor=BORDER,
+        tickfont=dict(color=TEXT_SECONDARY),
+    )
+    fig.update_yaxes(
+        gridcolor="rgba(217,200,180,0.45)",
+        linecolor=BORDER,
+        tickfont=dict(color=TEXT_SECONDARY),
+    )
+    return fig
 
-st.markdown(f'<div class="hero-sub">{tr("hero_sub")}</div>', unsafe_allow_html=True)
+# =========================
+# HERO
+# =========================
+st.markdown(
+    """
+    <div class="hero-wrap">
+        <div class="hero-title">Equity Terminal</div>
+        <div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>
+    </div>
+    <div class="soft-divider"></div>
+    """,
+    unsafe_allow_html=True,
+)
 
 col_search, col_btn = st.columns([4, 1])
 with col_search:
     query = st.text_input(
         "",
-        placeholder=tr("search_placeholder"),
+        placeholder="🔎 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
         label_visibility="collapsed",
     )
 with col_btn:
-    analyze_btn = st.button(tr("analyze"), use_container_width=True, type="primary")
+    analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
 
 if query != st.session_state.current_query:
     st.session_state.current_query = query
@@ -739,7 +649,7 @@ ticker_sym = ""
 if query:
     suggestions = search_ticker(query)
     if suggestions:
-        choice = st.selectbox(tr("suggestions"), suggestions, label_visibility="collapsed")
+        choice = st.selectbox("Sugerencias", suggestions, label_visibility="collapsed")
         ticker_sym = choice.split(" — ")[0].strip()
     else:
         ticker_sym = query.strip().upper()
@@ -747,27 +657,26 @@ if query:
 if analyze_btn and ticker_sym:
     st.session_state.analyzed_ticker = ticker_sym
 
-with st.expander(tr("options"), expanded=False):
+with st.expander("⚙️ Opciones de análisis", expanded=False):
     op1, op2 = st.columns([1, 2])
     with op1:
-        period = st.selectbox(tr("period"), ["1y", "3y", "5y", "10y"], index=1)
+        period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
     with op2:
         corr_tickers_input = st.text_input(
-            tr("corr_input"),
+            "Tickers para correlación y cartera (separados por comas)",
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
 
 if not st.session_state.analyzed_ticker:
-    st.markdown("---")
     st.markdown(
         f"""
         <div style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
             <div style="font-size:3rem;">🏦</div>
             <div style="font-size:1.1rem; margin-top:0.5rem;">
-                {tr("welcome_1")} <b>{tr("analyze")}</b>
+                Introduce el nombre o ticker de una empresa y pulsa <b>Analizar →</b>
             </div>
             <div style="font-size:0.85rem; margin-top:0.5rem;">
-                {tr("welcome_2")}
+                Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex
             </div>
         </div>
         """,
@@ -778,28 +687,20 @@ if not st.session_state.analyzed_ticker:
 active_ticker = st.session_state.analyzed_ticker
 
 # =========================
-# EXTRACCIÓN DE DATOS
+# DATOS
 # =========================
-with st.spinner(f"{tr('loading_data')} {active_ticker}..."):
+with st.spinner(f"Cargando datos de {active_ticker}..."):
     try:
         stock = yf.Ticker(active_ticker)
         info = stock.info
         hist = stock.history(period=period)
-
-        financials_annual = stock.financials
-        balance_annual = stock.balance_sheet
-        cashflow_annual = stock.cashflow
-
-        financials_quarterly = stock.quarterly_financials
-        balance_quarterly = stock.quarterly_balance_sheet
-        cashflow_quarterly = stock.quarterly_cashflow
     except Exception as e:
-        st.error(f"{tr('data_error')}: {e}")
+        st.error(f"Error al obtener datos: {e}")
         st.stop()
 
 price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
 if price is None:
-    st.error(tr("price_error"))
+    st.error("No se pudo obtener el precio de mercado. Verifica el ticker.")
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
@@ -812,24 +713,11 @@ if price and prev_close:
     chg = price - prev_close
     chg_pct = chg / prev_close * 100
     color_chg = ACCENT_GREEN if chg >= 0 else ACCENT_RED
-    delta_str = f'<span style="color:{color_chg}">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
+    delta_str = f'<span style="color:{color_chg}; font-size:1rem;">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
 else:
     delta_str = ""
 
-st.markdown(
-    f"""
-    <div style="margin: 1.2rem 0 0.3rem 0;">
-        <span style="font-size:1.7rem;font-weight:700;">{company_name}</span>
-        <span style="color:{TEXT_SECONDARY};font-size:0.95rem;margin-left:0.8rem;">
-            {active_ticker} · {sector} · {industry} · {currency}
-        </span>
-    </div>
-    <div style="font-size:2rem;font-weight:700;margin-bottom:0.5rem;">
-        {price:.2f} {currency} {delta_str}
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+render_company_header(company_name, active_ticker, sector, industry, currency, price, delta_str)
 
 mc = fmt_large(info.get("marketCap"))
 high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
@@ -837,66 +725,46 @@ low52 = fmt_num(info.get("fiftyTwoWeekLow"))
 beta_v = fmt_num(info.get("beta"))
 
 k1, k2, k3, k4 = st.columns(4)
-for col, label, val in [
-    (k1, tr("market_cap"), mc),
-    (k2, tr("high_52w"), f"{high52} {currency}"),
-    (k3, tr("low_52w"), f"{low52} {currency}"),
-    (k4, tr("beta"), beta_v),
-]:
-    with col:
-        st.markdown(
-            f'<div class="metric-card"><div class="metric-label">{label}</div>'
-            f'<div class="metric-value">{val}</div></div>',
-            unsafe_allow_html=True,
-        )
+with k1:
+    metric_card("Market Cap", mc)
+with k2:
+    metric_card("52W Máx", f"{high52} {currency}")
+with k3:
+    metric_card("52W Mín", f"{low52} {currency}")
+with k4:
+    metric_card("Beta", beta_v)
 
 returns = None
 
 # =========================
-# PESTAÑAS
+# TABS
 # =========================
-tab_emp, tab_rat, tab_val, tab_stmt, tab_bench, tab_corr, tab_price, tab_port, tab_news = st.tabs(
-    [
-        tr("company"),
-        tr("ratios"),
-        tr("valuation"),
-        tr("statements"),
-        tr("benchmarks"),
-        tr("correlations"),
-        tr("price"),
-        tr("portfolio"),
-        tr("news"),
-    ]
+tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
+    ["Empresa", "Ratios", "Valoración", "Benchmarks", "Correlaciones", "Precio", "Optimización de Cartera"]
 )
 
-# ==== EMPRESA ====
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
-        st.subheader(tr("business_description"))
+        st.markdown('<div class="section-title">Descripción</div>', unsafe_allow_html=True)
         desc = info.get("longBusinessSummary")
         if desc:
-            st.write(traducir_texto(desc))
+            st.write(desc)
         else:
-            st.info(tr("no_description"))
+            st.info("No hay descripción disponible.")
     with c2:
-        st.subheader(tr("corporate_data"))
+        st.markdown('<div class="section-title">Datos corporativos</div>', unsafe_allow_html=True)
         employees = info.get("fullTimeEmployees")
         for label, val in [
-            (tr("country"), info.get("country", "N/A")),
-            (tr("city"), info.get("city", "N/A")),
-            (tr("exchange"), info.get("exchange", "N/A")),
-            (tr("employees"), f"{employees:,}" if employees else "N/A"),
-            (tr("sector"), sector),
-            (tr("industry"), industry),
+            ("País", info.get("country", "N/A")),
+            ("Ciudad", info.get("city", "N/A")),
+            ("Exchange", info.get("exchange", "N/A")),
+            ("Empleados", f"{employees:,}" if employees else "N/A"),
+            ("Sector", sector),
+            ("Industria", industry),
         ]:
-            st.markdown(
-                f'<div class="metric-card"><div class="metric-label">{label}</div>'
-                f'<div class="metric-value">{val}</div></div>',
-                unsafe_allow_html=True,
-            )
+            metric_card(label, val)
 
-# ==== RATIOS ====
 with tab_rat:
     pe = safe_float(info.get("trailingPE"))
     fwd_pe = safe_float(info.get("forwardPE"))
@@ -913,281 +781,352 @@ with tab_rat:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f"**{tr('market_valuation')}**")
-        st.write(f"{tr('trailing_pe')}: **{fmt_num(pe)}**")
-        st.write(f"{tr('forward_pe')}: **{fmt_num(fwd_pe)}**")
-        st.write(f"{tr('pb')}: **{fmt_num(pb)}**")
-        st.write(f"{tr('ps')}: **{fmt_num(ps)}**")
+        metric_card("P/E (TTM)", fmt_num(pe))
+        metric_card("P/E (Fwd)", fmt_num(fwd_pe))
+        metric_card("P/B", fmt_num(pb))
+        metric_card("P/S", fmt_num(ps))
     with col2:
-        st.markdown(f"**{tr('profitability')}**")
-        st.write(f"{tr('roe')}: **{fmt_num(roe*100 if roe else None, 1, '%')}**")
-        st.write(f"{tr('roa')}: **{fmt_num(roa*100 if roa else None, 1, '%')}**")
-        st.write(f"{tr('gross_margin')}: **{fmt_num(gross_margin*100 if gross_margin else None, 1, '%')}**")
-        st.write(f"{tr('net_margin')}: **{fmt_num(profit_margin*100 if profit_margin else None, 1, '%')}**")
+        metric_card("ROE", fmt_num(roe*100 if roe else None, 1, "%"))
+        metric_card("ROA", fmt_num(roa*100 if roa else None, 1, "%"))
+        metric_card("Margen bruto", fmt_num(gross_margin*100 if gross_margin else None, 1, "%"))
+        metric_card("Margen neto", fmt_num(profit_margin*100 if profit_margin else None, 1, "%"))
     with col3:
-        st.markdown(f"**{tr('risk_liquidity')}**")
-        st.write(f"{tr('debt_equity')}: **{fmt_num(debt_equity)}**")
-        st.write(f"{tr('current_ratio')}: **{fmt_num(current_ratio)}**")
-        st.write(f"{tr('quick_ratio')}: **{fmt_num(quick_ratio)}**")
-        st.write(f"{tr('dividend_yield')}: **{fmt_num(dividend_yield*100 if dividend_yield else None, 2, '%')}**")
+        metric_card("Deuda/Equity", fmt_num(debt_equity))
+        metric_card("Current ratio", fmt_num(current_ratio))
+        metric_card("Quick ratio", fmt_num(quick_ratio))
+        metric_card("Dividend yield", fmt_num(dividend_yield*100 if dividend_yield else None, 2, "%"))
 
-# ==== VALORACIÓN ====
+    def norm(v, lo, hi):
+        v2 = safe_float(v, None)
+        if v2 is None:
+            return 0.0
+        return max(0.0, min(1.0, (v2 - lo) / (hi - lo)))
+
+    radar_labels = ["ROE", "ROA", "Margen neto", "P/E bajo", "Deuda baja", "Liquidez"]
+    radar_values = [
+        norm(roe*100 if roe else None, 0, 40),
+        norm(roa*100 if roa else None, 0, 20),
+        norm(profit_margin*100 if profit_margin else None, 0, 30),
+        1 - norm(pe, 0, 40),
+        1 - norm(debt_equity, 0, 200),
+        norm(current_ratio, 0, 3),
+    ]
+    radar_values += [radar_values[0]]
+    radar_labels += [radar_labels[0]]
+
+    fig_radar = go.Figure(
+        data=go.Scatterpolar(
+            r=radar_values,
+            theta=radar_labels,
+            fill="toself",
+            line_color=ACCENT_GOLD,
+            fillcolor="rgba(182,138,82,0.25)",
+        )
+    )
+    fig_radar.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 1], gridcolor="rgba(217,200,180,0.45)")
+        ),
+        showlegend=False,
+        height=350,
+    )
+    style_plotly(fig_radar)
+    st.plotly_chart(fig_radar, use_container_width=True)
+
 with tab_val:
-    st.subheader(tr("intrinsic_valuation"))
+    st.markdown('<div class="section-title">Valoración intrínseca</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Resumen de métodos, calidad, valor intrínseco y rango de upside.</div>', unsafe_allow_html=True)
+
     methods, current_price = compute_valuations(info, currency)
 
     if not methods:
-        st.warning(tr("insufficient_valuation_data"))
+        st.warning("No se pudieron calcular valoraciones por falta de datos.")
     else:
         df_val = pd.DataFrame(methods)
-        st.dataframe(df_val.sort_values("Upside %", ascending=False), use_container_width=True, hide_index=True)
+        df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
-# ==== ESTADOS CONTABLES ====
-with tab_stmt:
-    st.subheader(tr("financial_statements"))
+        def rango_upside(u):
+            if pd.isna(u):
+                return "N/A"
+            if u >= 40:
+                return "Muy infravalorado"
+            if u >= 20:
+                return "Infravalorado"
+            if u >= -10:
+                return "En línea"
+            if u >= -30:
+                return "Sobrevalorado"
+            return "Muy sobrevalorado"
 
-    s1, s2 = st.columns(2)
-    with s1:
-        statement_type = st.selectbox(
-            tr("statement_type"),
-            [tr("income_statement"), tr("balance_sheet"), tr("cash_flow")]
-        )
-    with s2:
-        statement_period = st.selectbox(
-            tr("statement_period"),
-            [tr("annual"), tr("quarterly")]
-        )
+        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
 
-    if statement_type == tr("income_statement"):
-        raw_df = financials_annual if statement_period == tr("annual") else financials_quarterly
-    elif statement_type == tr("balance_sheet"):
-        raw_df = balance_annual if statement_period == tr("annual") else balance_quarterly
-    else:
-        raw_df = cashflow_annual if statement_period == tr("annual") else cashflow_quarterly
-
-    df_stmt, available_periods = format_financial_df(raw_df)
-
-    if df_stmt.empty:
-        st.warning(tr("no_statement_data"))
-    else:
-        st.markdown(f"### {tr('comparison_table')}")
-        st.caption(f"{tr('available_years')}: {', '.join(available_periods)}")
-        st.caption(tr("download_ready"))
-
-        st.dataframe(
-            df_stmt,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                col: st.column_config.NumberColumn(col, format="%.0f")
-                for col in df_stmt.columns[1:]
-            }
-        )
-
-        st.markdown("---")
-        st.markdown(f"### {tr('comparison_view')}")
-
-        concept_col = tr("concept")
-        metric_options = df_stmt[concept_col].dropna().astype(str).tolist()
-        default_metrics = metric_options[:5] if len(metric_options) >= 5 else metric_options
-
-        selected_metrics = st.multiselect(
-            tr("select_metrics"),
-            options=metric_options,
-            default=default_metrics
-        )
-
-        if not selected_metrics:
-            st.info(tr("no_metrics_selected"))
-        else:
-            df_chart = df_stmt[df_stmt[concept_col].isin(selected_metrics)].copy()
-            df_chart_long = df_chart.melt(
-                id_vars=[concept_col],
-                var_name="Date" if st.session_state.lang == "en" else "Fecha",
-                value_name="Value" if st.session_state.lang == "en" else "Valor"
-            )
-
-            x_col = "Date" if st.session_state.lang == "en" else "Fecha"
-            y_col = "Value" if st.session_state.lang == "en" else "Valor"
-
-            fig_stmt = px.line(
-                df_chart_long,
-                x=x_col,
-                y=y_col,
-                color=concept_col,
-                markers=True,
-                title=tr("statement_chart")
-            )
-            fig_stmt.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=500,
-                xaxis_title=x_col,
-                yaxis_title=y_col,
-                legend_title=tr("top_lines"),
-            )
-            st.plotly_chart(fig_stmt, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader(tr("official_filings"))
-
-    source_col1, source_col2 = st.columns(2)
-    with source_col1:
-        filing_source = st.selectbox(
-            tr("filing_source"),
-            [tr("sec_source"), tr("cnmv_source")]
-        )
-
-    if filing_source == tr("sec_source"):
-        mapped_cik = SEC_TICKER_CIK.get(active_ticker.upper(), "")
-        if mapped_cik:
-            st.caption(f"{tr('using_mapped_cik')}: {mapped_cik}")
-
-        sec_cik = st.text_input(
-            tr("enter_cik"),
-            value=mapped_cik
-        )
-
-        sec_form = st.selectbox(
-            tr("filing_type"),
-            ["10-K", "10-Q", "20-F", "8-K"]
-        )
-
-        if st.button(tr("lookup_filing")):
-            if not sec_cik:
-                st.warning(tr("invalid_cik"))
+        def score_row(row):
+            u = row["Upside %"]
+            cal = row["Calidad"]
+            if pd.isna(u):
+                base = 2
+            elif u >= 40:
+                base = 5
+            elif u >= 20:
+                base = 4
+            elif u >= 0:
+                base = 3
+            elif u >= -20:
+                base = 2
             else:
-                try:
-                    filing_data = get_sec_latest_filing(sec_cik, sec_form)
+                base = 1
 
-                    if not filing_data:
-                        st.info(tr("filing_not_found"))
-                    else:
-                        st.success(f"{tr('filing_found')}: {filing_data['form']} · {filing_data['date']}")
-                        st.markdown(f"[{tr('open_document')}]({filing_data['url']})")
+            if cal == "Alta":
+                base = min(base + 1, 5)
+            elif cal == "Baja":
+                base = max(base - 1, 1)
 
-                        headers = {"User-Agent": "Your Name your@email.com"}
-                        file_resp = requests.get(filing_data["url"], headers=headers, timeout=30)
+            return "★" * base + "☆" * (5 - base)
 
-                        if file_resp.status_code == 200:
-                            st.download_button(
-                                label=tr("download_sec_filing"),
-                                data=file_resp.content,
-                                file_name=f"{active_ticker}_{filing_data['form']}_{filing_data['date']}.html",
-                                mime="text/html",
-                            )
-                        else:
-                            st.warning(tr("direct_download_failed"))
+        df_val["Score"] = df_val.apply(score_row, axis=1)
 
-                except Exception as e:
-                    st.error(f"{tr('sec_error')}: {e}")
+        def fmt_val(v):
+            return f"{v:.2f}" if pd.notna(v) else "N/A"
 
-    else:
-        st.info(tr("cnmv_info"))
-        st.markdown(
-            f"[{tr('open_cnmv')}](https://www.cnmv.es/portal/consultas/em_inffinanual?id=EE&lang=es)"
+        def fmt_up(u):
+            return f"{u:+.1f}%" if pd.notna(u) else "N/A"
+
+        df_tabla = pd.DataFrame({
+            "Método": df_val["Método"],
+            "Tipo": df_val["Tipo"],
+            "Score": df_val["Score"],
+            "Upside (%)": df_val["Upside %"].apply(fmt_up),
+            "Valor intrínseco": df_val["Valor"].apply(fmt_val),
+            "Precio actual": df_val["Precio"].apply(fmt_val),
+            "Calidad": df_val["Calidad"],
+            "Interpretación": df_val["Interpretación"],
+            "Supuestos": df_val["Supuestos"],
+        })
+
+        df_tabla = df_tabla.reindex(df_val.sort_values("Upside %", ascending=False).index)
+        render_champagne_table(df_tabla, pills_cols=["Calidad", "Interpretación"])
+
+        upsides = df_val["Upside %"].dropna()
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            metric_card("Métodos calculados", str(len(df_val)))
+        with m2:
+            metric_card("Upside mediano", f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
+        with m3:
+            metric_card("Upside medio", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A")
+        with m4:
+            metric_card("Rango upside", f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A")
+
+        fig_val = px.strip(
+            df_val,
+            x="Upside %",
+            y="Tipo",
+            color="Tipo",
+            hover_data=["Método", "Valor", "Supuestos"],
+            color_discrete_map={
+                "DCF": CHART_COLORS[0],
+                "Múltiplo": CHART_COLORS[1],
+                "Mixto": CHART_COLORS[2],
+                "DDM": CHART_COLORS[4],
+            },
         )
+        fig_val.add_vline(x=0, line_dash="dash", line_color="#8B7355", opacity=0.6)
+        fig_val.add_vline(x=30, line_dash="dot", line_color=ACCENT_GREEN, opacity=0.6)
+        fig_val.update_layout(height=350, xaxis_title="Upside vs precio actual (%)")
+        style_plotly(fig_val)
+        st.plotly_chart(fig_val, use_container_width=True)
 
-# ==== BENCHMARKS ====
+        fig_bar = px.bar(
+            df_val.sort_values("Valor"),
+            x="Valor",
+            y="Método",
+            color="Tipo",
+            orientation="h",
+            color_discrete_map={
+                "DCF": CHART_COLORS[0],
+                "Múltiplo": CHART_COLORS[1],
+                "Mixto": CHART_COLORS[2],
+                "DDM": CHART_COLORS[4],
+            },
+            title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
+        )
+        fig_bar.add_vline(x=current_price, line_dash="dash", line_color=ACCENT_RED)
+        fig_bar.update_layout(height=max(400, len(df_val) * 22))
+        style_plotly(fig_bar)
+        st.plotly_chart(fig_bar, use_container_width=True)
+
 with tab_bench:
-    st.subheader(tr("sector_benchmarks"))
+    st.markdown('<div class="section-title">Comparables del sector</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Múltiplos y rentabilidad frente a empresas de referencia.</div>', unsafe_allow_html=True)
+
     peers = get_benchmark_list(info, active_ticker)
     if not peers:
-        st.info(tr("no_benchmarks"))
+        st.info("No hay benchmarks definidos para este sector.")
     else:
         tickers_all = [active_ticker] + peers
-        data = {}
-        for t in tickers_all:
-            try:
-                tk = yf.Ticker(t)
-                inf = tk.info
-                data[t] = {
-                    "Nombre": inf.get("shortName", t),
-                    "P/E": safe_float(inf.get("trailingPE")),
-                    "P/B": safe_float(inf.get("priceToBook")),
-                    "ROE": safe_float(inf.get("returnOnEquity")),
-                    "Margen neto": safe_float(inf.get("profitMargins")),
-                    "Precio": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
-                    "Market Cap": safe_float(inf.get("marketCap")),
-                }
-            except Exception:
-                continue
+        with st.spinner("Descargando datos de benchmarks..."):
+            data = {}
+            for t in tickers_all:
+                try:
+                    tk = yf.Ticker(t)
+                    inf = tk.info
+                    data[t] = {
+                        "Nombre": inf.get("shortName", t),
+                        "P/E": safe_float(inf.get("trailingPE")),
+                        "P/B": safe_float(inf.get("priceToBook")),
+                        "ROE": safe_float(inf.get("returnOnEquity")),
+                        "Margen neto": safe_float(inf.get("profitMargins")),
+                        "Precio": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        "Market Cap": safe_float(inf.get("marketCap")),
+                    }
+                except Exception:
+                    continue
 
         if len(data) <= 1:
-            st.warning(tr("benchmarks_error"))
+            st.warning("No se pudieron cargar datos de benchmarks.")
         else:
-            df_bench = pd.DataFrame.from_dict(data, orient="index").reset_index().rename(columns={"index": "Ticker"})
-            st.dataframe(df_bench, use_container_width=True, hide_index=True)
+            df_bench = pd.DataFrame.from_dict(data, orient="index")
+            df_bench.index.name = "Ticker"
+            df_bench.reset_index(inplace=True)
 
-# ==== CORRELACIONES ====
+            def fmt_pe(x):
+                return f"{x:.1f}" if pd.notna(x) else "N/A"
+
+            def fmt_ratio(x):
+                return f"{x*100:.1f}%" if pd.notna(x) else "N/A"
+
+            def fmt_price(x):
+                return f"{x:.2f}" if pd.notna(x) else "N/A"
+
+            def fmt_mc(x):
+                return fmt_large(x)
+
+            df_view = pd.DataFrame({
+                "Ticker": df_bench["Ticker"],
+                "Nombre": df_bench["Nombre"],
+                "Precio": df_bench["Precio"].apply(fmt_price),
+                "P/E": df_bench["P/E"].apply(fmt_pe),
+                "P/B": df_bench["P/B"].apply(fmt_pe),
+                "ROE": df_bench["ROE"].apply(fmt_ratio),
+                "Margen neto": df_bench["Margen neto"].apply(fmt_ratio),
+                "Market Cap": df_bench["Market Cap"].apply(fmt_mc),
+            })
+
+            df_view = df_view.reindex(df_bench.sort_values("Market Cap", ascending=False).index)
+            render_champagne_table(df_view)
+
+            fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_comp.add_trace(
+                go.Bar(
+                    x=df_bench["Ticker"],
+                    y=df_bench["P/E"],
+                    name="P/E",
+                    marker_color=ACCENT_GOLD,
+                ),
+                secondary_y=False,
+            )
+            fig_comp.add_trace(
+                go.Scatter(
+                    x=df_bench["Ticker"],
+                    y=df_bench["ROE"] * 100,
+                    name="ROE (%)",
+                    mode="lines+markers",
+                    line_color=ACCENT_GREEN,
+                ),
+                secondary_y=True,
+            )
+            fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
+            fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
+            fig_comp.update_layout(height=400)
+            style_plotly(fig_comp)
+            st.plotly_chart(fig_comp, use_container_width=True)
+
 with tab_corr:
-    st.subheader(tr("correlation_returns"))
+    st.markdown('<div class="section-title">Correlación de rentabilidades</div>', unsafe_allow_html=True)
+
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
     if active_ticker not in corr_tickers:
         corr_tickers.insert(0, active_ticker)
 
-    try:
-        df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
-        if isinstance(df_download.columns, pd.MultiIndex):
-            prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
-        else:
-            prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
-        returns = prices.pct_change().dropna()
-    except Exception:
-        returns = None
+    with st.spinner("Descargando precios históricos..."):
+        try:
+            df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
+
+            if isinstance(df_download.columns, pd.MultiIndex):
+                prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
+            else:
+                prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
+
+            returns = prices.pct_change().dropna()
+        except Exception as e:
+            st.error(f"No se pudo descargar precios: {e}")
+            returns = None
 
     if returns is not None and not returns.empty:
         corr = returns.corr()
-        st.markdown(f"#### {tr('correlation_matrix')}")
-        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
-        fig_corr.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-        )
+        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale="BrBG", zmin=-1, zmax=1)
+        fig_corr.update_layout(height=420)
+        style_plotly(fig_corr)
         st.plotly_chart(fig_corr, use_container_width=True)
 
-# ==== PRECIO ====
+        cum = (1 + returns).cumprod()
+        fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"}, color_discrete_sequence=CHART_COLORS)
+        fig_cum.update_layout(height=400)
+        style_plotly(fig_cum)
+        st.plotly_chart(fig_cum, use_container_width=True)
+
 with tab_price:
-    st.subheader(tr("historical_price_volume"))
+    st.markdown('<div class="section-title">Histórico de precio y volumen</div>', unsafe_allow_html=True)
     if hist is None or hist.empty:
-        st.warning(tr("no_historical_data"))
+        st.warning("No hay datos históricos disponibles.")
     else:
-        fig_price = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.7, 0.3])
+        fig_price = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.7, 0.3]
+        )
         fig_price.add_trace(
             go.Candlestick(
-                x=hist.index, open=hist["Open"], high=hist["High"],
-                low=hist["Low"], close=hist["Close"], name=tr("ohlc")
+                x=hist.index,
+                open=hist["Open"],
+                high=hist["High"],
+                low=hist["Low"],
+                close=hist["Close"],
+                name="OHLC",
+                increasing_line_color=ACCENT_GREEN,
+                decreasing_line_color=ACCENT_RED,
             ),
             row=1, col=1,
         )
         fig_price.add_trace(
-            go.Bar(x=hist.index, y=hist["Volume"], name=tr("volume"), marker_color=ACCENT_BLUE),
+            go.Bar(
+                x=hist.index,
+                y=hist["Volume"],
+                name="Volumen",
+                marker_color=ACCENT_GOLD_SOFT,
+            ),
             row=2, col=1,
         )
-        fig_price.update_layout(
-            height=600,
-            xaxis_rangeslider_visible=False,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
+        fig_price.update_layout(height=600, xaxis_rangeslider_visible=False)
+        style_plotly(fig_price)
         st.plotly_chart(fig_price, use_container_width=True)
 
-# ==== OPTIMIZACIÓN ====
 with tab_port:
-    st.subheader(tr("markowitz"))
+    st.markdown('<div class="section-title">Optimización de Cartera de Markowitz</div>', unsafe_allow_html=True)
 
     if returns is not None and not returns.empty:
-        st.markdown(tr("optimize_selection"))
+        st.markdown('<div class="section-sub">Configura las variables para optimizar tu selección actual de activos.</div>', unsafe_allow_html=True)
 
         c_opt1, c_opt2 = st.columns(2)
         with c_opt1:
             objetivo = st.selectbox(
-                tr("optimizer_goal"),
-                [tr("maximize_sharpe"), tr("min_variance")]
+                "Objetivo del Optimizador",
+                ["Maximizar Ratio Sharpe (Eficiencia)", "Minimizar Varianza (Mínimo Riesgo)"]
             )
         with c_opt2:
-            rf_rate = st.number_input(tr("risk_free_rate"), value=4.0, step=0.1) / 100
+            rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
 
         num_activos = len(corr_tickers)
         rendimientos_medios = returns.mean() * 252
@@ -1201,18 +1140,18 @@ with tab_port:
             return r_cartera, vol_cartera, sharpe
 
         def funcion_a_minimizar(weights):
-            if objetivo == tr("maximize_sharpe"):
+            if objetivo == "Maximizar Ratio Sharpe (Eficiencia)":
                 return -estadisticas_cartera(weights)[2]
             return estadisticas_cartera(weights)[1]
 
-        restricciones = ({"type": "eq", "fun": lambda x: np.sum(x) - 1},)
+        restricciones = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
         limites = tuple((0, 1) for _ in range(num_activos))
-        pesos_iniciales = [1.0 / num_activos] * num_activos
+        pesos_iniciales = num_activos * [1.0 / num_activos]
 
         resultado_opt = minimize(
             funcion_a_minimizar,
             pesos_iniciales,
-            method="SLSQP",
+            method='SLSQP',
             bounds=limites,
             constraints=restricciones
         )
@@ -1221,76 +1160,32 @@ with tab_port:
             pesos_optimos = resultado_opt.x
             r_opt, vol_opt, sharpe_opt = estadisticas_cartera(pesos_optimos)
 
-            st.markdown(f"#### {tr('optimal_metrics')}")
-            m_p1, m_p2, m_p3 = st.columns(3)
-            m_p1.metric(tr("expected_return"), f"{r_opt*100:.2f}%")
-            m_p2.metric(tr("portfolio_volatility"), f"{vol_opt*100:.2f}%")
-            m_p3.metric(tr("sharpe_ratio"), f"{sharpe_opt:.2f}")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                metric_card("Retorno Esperado Anual", f"{r_opt*100:.2f}%")
+            with c2:
+                metric_card("Volatilidad de la Cartera", f"{vol_opt*100:.2f}%")
+            with c3:
+                metric_card("Ratio Sharpe Resultante", f"{sharpe_opt:.2f}")
 
             df_pesos = pd.DataFrame({
                 "Activo": corr_tickers,
                 "Ponderación Óptima (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
-                "Fracción Decimal": np.round(pesos_optimos, 4)
+                "Fracción Decimal": np.round(pesos_optimos, 4),
             }).sort_values(by="Fracción Decimal", ascending=False)
 
-            st.dataframe(df_pesos, use_container_width=True, hide_index=True)
+            render_champagne_table(df_pesos)
 
             fig_pie = px.pie(
                 df_pesos[df_pesos["Fracción Decimal"] > 0.001],
                 values="Fracción Decimal",
                 names="Activo",
                 title=f"Distribución recomendada de capital ({objetivo})",
-                color_discrete_sequence=[ACCENT_BLUE, ACCENT_GREEN, "#A78BFA", "#FB923C", "#60A5FA", "#F472B6"]
+                color_discrete_sequence=CHART_COLORS,
             )
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)"
-            )
+            style_plotly(fig_pie)
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.error(tr("optimizer_error"))
+            st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
     else:
-        st.warning(tr("insufficient_hist_data"))
-
-# ==== NOTICIAS ====
-with tab_news:
-    st.subheader(tr("relevant_news"))
-
-    api_key = st.secrets.get("NEWS_API_KEY", None)
-    if not api_key:
-        st.warning(tr("no_api_key"))
-    else:
-        with st.spinner(tr("loading_news")):
-            noticias_empresa = get_company_news(api_key, active_ticker, company_name)
-            noticias_mercado = get_market_news(api_key)
-
-        if not noticias_empresa and not noticias_mercado:
-            st.info(tr("no_news"))
-        else:
-            st.caption(tr("news_info_header"))
-
-            if noticias_empresa:
-                st.markdown(f"### {tr('company_news')}")
-                for art in noticias_empresa:
-                    titulo = traducir_texto(art.get("title", "Untitled"))
-                    fuente = art.get("source", {}).get("name", "Unknown source")
-                    fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
-                    descripcion = traducir_texto(art.get("description") or art.get("content") or "")
-                    url = art.get("url")
-                    with st.expander(f"{titulo} · {fuente} · {fecha}"):
-                        st.write(descripcion)
-                        if url:
-                            st.markdown(f"[{tr('read_more')}]({url})")
-
-            if noticias_mercado:
-                st.markdown(f"### {tr('market_news')}")
-                for art in noticias_mercado:
-                    titulo = traducir_texto(art.get("title", "Untitled"))
-                    fuente = art.get("source", {}).get("name", "Unknown source")
-                    fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
-                    descripcion = traducir_texto(art.get("description") or art.get("content") or "")
-                    url = art.get("url")
-                    with st.expander(f"{titulo} · {fuente} · {fecha}"):
-                        st.write(descripcion)
-                        if url:
-                            st.markdown(f"[{tr('read_more')}]({url})")
+        st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
