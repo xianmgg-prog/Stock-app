@@ -155,6 +155,23 @@ TEXTS = {
         "comparison_table": "Tabla histórica comparativa",
         "top_lines": "Partidas principales",
         "concept": "Concepto",
+        "official_filings": "Informes oficiales",
+        "filing_source": "Fuente del informe",
+        "sec_source": "SEC (EEUU)",
+        "cnmv_source": "CNMV (España)",
+        "filing_type": "Tipo de informe",
+        "lookup_filing": "Buscar informe",
+        "download_sec_filing": "Descargar documento SEC",
+        "open_document": "Abrir documento",
+        "enter_cik": "CIK de la compañía (10 dígitos, opcional si existe mapeo)",
+        "filing_found": "Informe localizado",
+        "filing_not_found": "No se encontró un informe reciente de ese tipo.",
+        "sec_error": "Error al consultar la SEC",
+        "cnmv_info": "La CNMV publica los informes financieros en su portal oficial.",
+        "open_cnmv": "Abrir buscador CNMV",
+        "using_mapped_cik": "Usando CIK mapeado automáticamente",
+        "invalid_cik": "Introduce un CIK válido.",
+        "direct_download_failed": "No se pudo descargar el documento directamente.",
     },
     "en": {
         "hero_sub": "Value Investing · Fundamental analysis of listed companies",
@@ -274,6 +291,23 @@ TEXTS = {
         "comparison_table": "Historical comparison table",
         "top_lines": "Main line items",
         "concept": "Concept",
+        "official_filings": "Official filings",
+        "filing_source": "Filing source",
+        "sec_source": "SEC (US)",
+        "cnmv_source": "CNMV (Spain)",
+        "filing_type": "Filing type",
+        "lookup_filing": "Search filing",
+        "download_sec_filing": "Download SEC document",
+        "open_document": "Open document",
+        "enter_cik": "Company CIK (10 digits, optional if mapping exists)",
+        "filing_found": "Filing found",
+        "filing_not_found": "No recent filing of that type was found.",
+        "sec_error": "Error while querying the SEC",
+        "cnmv_info": "CNMV publishes financial reports in its official portal.",
+        "open_cnmv": "Open CNMV search",
+        "using_mapped_cik": "Using automatically mapped CIK",
+        "invalid_cik": "Enter a valid CIK.",
+        "direct_download_failed": "The document could not be downloaded directly.",
     },
 }
 
@@ -492,6 +526,48 @@ def get_market_news(api_key):
         return []
     except Exception:
         return []
+
+SEC_TICKER_CIK = {
+    "AAPL": "0000320193",
+    "MSFT": "0000789019",
+    "GOOGL": "0001652044",
+    "AMZN": "0001018724",
+    "META": "0001326801",
+    "TSLA": "0001318605",
+    "NVDA": "0001045810",
+    "BRK-B": "0001067983",
+    "JPM": "0000019617",
+    "KO": "0000021344",
+}
+
+def get_sec_latest_filing(cik, form_type, user_agent="Your Name your@email.com"):
+    headers = {"User-Agent": user_agent}
+    cik = str(cik).zfill(10)
+
+    url_sub = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    resp = requests.get(url_sub, headers=headers, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+
+    filings = data.get("filings", {}).get("recent", {})
+    forms = filings.get("form", [])
+    accessions = filings.get("accessionNumber", [])
+    primary_docs = filings.get("primaryDocument", [])
+    filing_dates = filings.get("filingDate", [])
+
+    for form, acc, doc, fdate in zip(forms, accessions, primary_docs, filing_dates):
+        if form == form_type:
+            acc_nodash = acc.replace("-", "")
+            cik_int = str(int(cik))
+            doc_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_nodash}/{doc}"
+            return {
+                "form": form,
+                "date": fdate,
+                "url": doc_url,
+                "accession": acc,
+            }
+
+    return None
 
 # =========================
 # VALORACIÓN
@@ -714,7 +790,7 @@ with st.spinner(f"{tr('loading_data')} {active_ticker}..."):
         balance_annual = stock.balance_sheet
         cashflow_annual = stock.cashflow
 
-        financials_quarterly = stock.quarterly_financials if hasattr(stock, "quarterly_financials") else stock.quarterly_income_stmt
+        financials_quarterly = stock.quarterly_financials
         balance_quarterly = stock.quarterly_balance_sheet
         cashflow_quarterly = stock.quarterly_cashflow
     except Exception as e:
@@ -952,6 +1028,66 @@ with tab_stmt:
             )
             st.plotly_chart(fig_stmt, use_container_width=True)
 
+    st.markdown("---")
+    st.subheader(tr("official_filings"))
+
+    source_col1, source_col2 = st.columns(2)
+    with source_col1:
+        filing_source = st.selectbox(
+            tr("filing_source"),
+            [tr("sec_source"), tr("cnmv_source")]
+        )
+
+    if filing_source == tr("sec_source"):
+        mapped_cik = SEC_TICKER_CIK.get(active_ticker.upper(), "")
+        if mapped_cik:
+            st.caption(f"{tr('using_mapped_cik')}: {mapped_cik}")
+
+        sec_cik = st.text_input(
+            tr("enter_cik"),
+            value=mapped_cik
+        )
+
+        sec_form = st.selectbox(
+            tr("filing_type"),
+            ["10-K", "10-Q", "20-F", "8-K"]
+        )
+
+        if st.button(tr("lookup_filing")):
+            if not sec_cik:
+                st.warning(tr("invalid_cik"))
+            else:
+                try:
+                    filing_data = get_sec_latest_filing(sec_cik, sec_form)
+
+                    if not filing_data:
+                        st.info(tr("filing_not_found"))
+                    else:
+                        st.success(f"{tr('filing_found')}: {filing_data['form']} · {filing_data['date']}")
+                        st.markdown(f"[{tr('open_document')}]({filing_data['url']})")
+
+                        headers = {"User-Agent": "Your Name your@email.com"}
+                        file_resp = requests.get(filing_data["url"], headers=headers, timeout=30)
+
+                        if file_resp.status_code == 200:
+                            st.download_button(
+                                label=tr("download_sec_filing"),
+                                data=file_resp.content,
+                                file_name=f"{active_ticker}_{filing_data['form']}_{filing_data['date']}.html",
+                                mime="text/html",
+                            )
+                        else:
+                            st.warning(tr("direct_download_failed"))
+
+                except Exception as e:
+                    st.error(f"{tr('sec_error')}: {e}")
+
+    else:
+        st.info(tr("cnmv_info"))
+        st.markdown(
+            f"[{tr('open_cnmv')}](https://www.cnmv.es/portal/consultas/em_inffinanual?id=EE&lang=es)"
+        )
+
 # ==== BENCHMARKS ====
 with tab_bench:
     st.subheader(tr("sector_benchmarks"))
@@ -1136,6 +1272,19 @@ with tab_news:
             if noticias_empresa:
                 st.markdown(f"### {tr('company_news')}")
                 for art in noticias_empresa:
+                    titulo = traducir_texto(art.get("title", "Untitled"))
+                    fuente = art.get("source", {}).get("name", "Unknown source")
+                    fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
+                    descripcion = traducir_texto(art.get("description") or art.get("content") or "")
+                    url = art.get("url")
+                    with st.expander(f"{titulo} · {fuente} · {fecha}"):
+                        st.write(descripcion)
+                        if url:
+                            st.markdown(f"[{tr('read_more')}]({url})")
+
+            if noticias_mercado:
+                st.markdown(f"### {tr('market_news')}")
+                for art in noticias_mercado:
                     titulo = traducir_texto(art.get("title", "Untitled"))
                     fuente = art.get("source", {}).get("name", "Unknown source")
                     fecha = (art.get("publishedAt") or "")[:16].replace("T", " ")
