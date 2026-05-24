@@ -8,6 +8,7 @@ from plotly.subplots import make_subplots
 import requests
 import math
 from scipy.optimize import minimize
+from deep_translator import GoogleTranslator
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
@@ -19,10 +20,245 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# =========================
+# SESSION STATE
+# =========================
 if "analyzed_ticker" not in st.session_state:
     st.session_state.analyzed_ticker = None
 if "current_query" not in st.session_state:
     st.session_state.current_query = ""
+if "lang" not in st.session_state:
+    st.session_state.lang = "es"
+
+# =========================
+# IDIOMAS
+# =========================
+LANG_OPTIONS = {
+    "Español": "es",
+    "English": "en",
+}
+
+TEXTS = {
+    "es": {
+        "hero_sub": "Value Investing · Análisis fundamental de empresas cotizadas",
+        "search_placeholder": "🔎 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
+        "analyze": "Analizar →",
+        "options": "⚙️ Opciones de análisis",
+        "period": "Período histórico",
+        "corr_input": "Tickers para correlación y cartera (separados por comas)",
+        "language": "Idioma",
+        "welcome_1": "Introduce el nombre o ticker de una empresa y pulsa",
+        "welcome_2": "Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
+        "company": "Empresa",
+        "ratios": "Ratios",
+        "statements": "Estados financieros",
+        "valuation": "Valoración",
+        "benchmarks": "Benchmarks",
+        "correlations": "Correlaciones",
+        "price": "Precio",
+        "portfolio": "Optimización de Cartera",
+        "description": "Descripción",
+        "corporate_data": "Datos corporativos",
+        "country": "País",
+        "city": "Ciudad",
+        "exchange": "Bolsa",
+        "employees": "Empleados",
+        "sector": "Sector",
+        "industry": "Industria",
+        "no_description": "No hay descripción disponible.",
+        "market_cap": "Market Cap",
+        "high_52w": "52W Máx",
+        "low_52w": "52W Mín",
+        "beta": "Beta",
+        "income_statement": "Cuenta de resultados",
+        "balance_sheet": "Balance",
+        "cash_flow": "Flujo de caja",
+        "annual": "Anual",
+        "quarterly": "Trimestral",
+        "statement_type": "Tipo de estado",
+        "periodicity": "Periodicidad",
+        "historical_table": "Tabla histórica",
+        "visual_comparison": "Comparativa visual",
+        "select_items": "Selecciona partidas para graficar",
+        "no_statement_data": "No hay datos disponibles para este estado financiero.",
+        "select_min_item": "Selecciona al menos una partida para mostrar la comparativa.",
+        "interactive_table": "Ver tabla interactiva adicional",
+        "intrinsic_valuation": "Valoración intrínseca",
+        "valuation_sub": "Resumen de métodos, calidad, valor intrínseco y rango de upside.",
+        "bench_sub": "Múltiplos y rentabilidad frente a empresas de referencia.",
+        "corr_title": "Correlación de rentabilidades",
+        "price_title": "Histórico de precio y volumen",
+        "portfolio_title": "Optimización de Cartera de Markowitz",
+        "portfolio_sub": "Configura las variables para optimizar tu selección actual de activos.",
+        "optimizer_goal": "Objetivo del Optimizador",
+        "sharpe_max": "Maximizar Ratio Sharpe (Eficiencia)",
+        "min_var": "Minimizar Varianza (Mínimo Riesgo)",
+        "rf_rate": "Tasa libre de riesgo anualizada (%)",
+        "expected_return": "Retorno Esperado Anual",
+        "portfolio_vol": "Volatilidad de la Cartera",
+        "portfolio_sharpe": "Ratio Sharpe Resultante",
+        "optimizer_fail": "El algoritmo matemático de optimización no pudo converger en una solución válida.",
+        "insufficient_hist": "Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.",
+        "company_section_sub": "Consulta históricos anuales o trimestrales de resultados, balance y flujo de caja.",
+        "comparables_title": "Comparables del sector",
+        "states_title": "Estados financieros",
+        "loading_data": "Cargando datos de",
+        "price_error": "No se pudo obtener el precio de mercado. Verifica el ticker.",
+        "data_error": "Error al obtener datos",
+        "no_benchmarks": "No hay benchmarks definidos para este sector.",
+        "bench_error": "No se pudieron cargar datos de benchmarks.",
+        "download_hist": "Descargando precios históricos...",
+        "download_bench": "Descargando datos de benchmarks...",
+        "methods_calc": "Métodos calculados",
+        "median_upside": "Upside mediano",
+        "mean_upside": "Upside medio",
+        "range_upside": "Rango upside",
+        "calc_fail": "No se pudieron calcular valoraciones por falta de datos.",
+        "very_undervalued": "Muy infravalorado",
+        "undervalued": "Infravalorado",
+        "fair_value": "En línea",
+        "overvalued": "Sobrevalorado",
+        "very_overvalued": "Muy sobrevalorado",
+        "opt_weights": "Distribución recomendada de capital",
+        "ticker_suggestions": "Sugerencias",
+        "current_ratio": "Current ratio",
+        "quick_ratio": "Quick ratio",
+        "dividend_yield": "Dividend yield",
+        "gross_margin": "Margen bruto",
+        "net_margin": "Margen neto",
+        "debt_equity": "Deuda/Equity",
+        "price_now": "Precio actual",
+        "quality": "Calidad",
+        "interpretation": "Interpretación",
+        "assumptions": "Supuestos",
+        "intrinsic_value": "Valor intrínseco",
+        "upside": "Upside (%)",
+        "method": "Método",
+        "type": "Tipo",
+        "score": "Score",
+        "market_valuation": "Valoración de mercado",
+        "profitability": "Rentabilidad",
+        "risk_liquidity": "Riesgo y liquidez",
+        "financial_profile": "Perfil financiero",
+        "no_hist_data": "No hay datos históricos disponibles.",
+    },
+    "en": {
+        "hero_sub": "Value Investing · Fundamental analysis of listed companies",
+        "search_placeholder": "🔎 Search for a company or ticker (e.g. Apple, AAPL, Stellantis, TEF.MC...)",
+        "analyze": "Analyze →",
+        "options": "⚙️ Analysis options",
+        "period": "Historical period",
+        "corr_input": "Tickers for correlation and portfolio (comma separated)",
+        "language": "Language",
+        "welcome_1": "Enter a company name or ticker and click",
+        "welcome_2": "Examples: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
+        "company": "Company",
+        "ratios": "Ratios",
+        "statements": "Financial statements",
+        "valuation": "Valuation",
+        "benchmarks": "Benchmarks",
+        "correlations": "Correlations",
+        "price": "Price",
+        "portfolio": "Portfolio Optimization",
+        "description": "Description",
+        "corporate_data": "Corporate data",
+        "country": "Country",
+        "city": "City",
+        "exchange": "Exchange",
+        "employees": "Employees",
+        "sector": "Sector",
+        "industry": "Industry",
+        "no_description": "No description available.",
+        "market_cap": "Market Cap",
+        "high_52w": "52W High",
+        "low_52w": "52W Low",
+        "beta": "Beta",
+        "income_statement": "Income statement",
+        "balance_sheet": "Balance sheet",
+        "cash_flow": "Cash flow",
+        "annual": "Annual",
+        "quarterly": "Quarterly",
+        "statement_type": "Statement type",
+        "periodicity": "Periodicity",
+        "historical_table": "Historical table",
+        "visual_comparison": "Visual comparison",
+        "select_items": "Select items to plot",
+        "no_statement_data": "No data available for this financial statement.",
+        "select_min_item": "Select at least one item to display the comparison.",
+        "interactive_table": "Open additional interactive table",
+        "intrinsic_valuation": "Intrinsic valuation",
+        "valuation_sub": "Summary of methods, quality, intrinsic value and upside range.",
+        "bench_sub": "Multiples and profitability versus peer companies.",
+        "corr_title": "Return correlations",
+        "price_title": "Historical price and volume",
+        "portfolio_title": "Markowitz Portfolio Optimization",
+        "portfolio_sub": "Configure the variables to optimize your current asset selection.",
+        "optimizer_goal": "Optimizer goal",
+        "sharpe_max": "Maximize Sharpe Ratio (Efficiency)",
+        "min_var": "Minimize Variance (Minimum Risk)",
+        "rf_rate": "Annualized risk-free rate (%)",
+        "expected_return": "Expected Annual Return",
+        "portfolio_vol": "Portfolio Volatility",
+        "portfolio_sharpe": "Sharpe Ratio",
+        "optimizer_fail": "The optimization algorithm could not converge to a valid solution.",
+        "insufficient_hist": "Insufficient historical data. Make sure the tickers are configured correctly in the options above.",
+        "company_section_sub": "Check annual or quarterly income statements, balance sheets and cash flow.",
+        "comparables_title": "Sector comparables",
+        "states_title": "Financial statements",
+        "loading_data": "Loading data for",
+        "price_error": "Could not retrieve market price. Check the ticker.",
+        "data_error": "Error retrieving data",
+        "no_benchmarks": "No benchmarks defined for this sector.",
+        "bench_error": "Benchmark data could not be loaded.",
+        "download_hist": "Downloading historical prices...",
+        "download_bench": "Downloading benchmark data...",
+        "methods_calc": "Methods calculated",
+        "median_upside": "Median upside",
+        "mean_upside": "Mean upside",
+        "range_upside": "Upside range",
+        "calc_fail": "Valuations could not be calculated due to missing data.",
+        "very_undervalued": "Very undervalued",
+        "undervalued": "Undervalued",
+        "fair_value": "Fairly valued",
+        "overvalued": "Overvalued",
+        "very_overvalued": "Very overvalued",
+        "opt_weights": "Recommended capital allocation",
+        "ticker_suggestions": "Suggestions",
+        "current_ratio": "Current ratio",
+        "quick_ratio": "Quick ratio",
+        "dividend_yield": "Dividend yield",
+        "gross_margin": "Gross margin",
+        "net_margin": "Net margin",
+        "debt_equity": "Debt/Equity",
+        "price_now": "Current price",
+        "quality": "Quality",
+        "interpretation": "Interpretation",
+        "assumptions": "Assumptions",
+        "intrinsic_value": "Intrinsic value",
+        "upside": "Upside (%)",
+        "method": "Method",
+        "type": "Type",
+        "score": "Score",
+        "market_valuation": "Market valuation",
+        "profitability": "Profitability",
+        "risk_liquidity": "Risk and liquidity",
+        "financial_profile": "Financial profile",
+        "no_hist_data": "No historical data available.",
+    },
+}
+
+def tr(key):
+    return TEXTS[st.session_state.lang].get(key, key)
+
+def translate_text(text):
+    if not text:
+        return ""
+    if st.session_state.lang == "en":
+        return text
+    try:
+        return GoogleTranslator(source="auto", target=st.session_state.lang).translate(text)
+    except Exception:
+        return text
 
 # =========================
 # PALETA CHAMPAGNE
@@ -393,9 +629,9 @@ def render_champagne_table(df: pd.DataFrame, pills_cols=None):
 
     def pill_class(val):
         v = str(val).lower()
-        if any(x in v for x in ["alta", "muy infravalorado", "infravalorado", "buy", "+"]):
+        if any(x in v for x in ["alta", "high", "muy infravalorado", "infravalorado", "undervalued", "buy", "+"]):
             return "pill pill-green"
-        if any(x in v for x in ["baja", "muy sobrevalorado", "sobrevalorado", "sell"]):
+        if any(x in v for x in ["baja", "low", "muy sobrevalorado", "sobrevalorado", "overvalued", "sell"]):
             return "pill pill-red"
         return "pill pill-gold"
 
@@ -455,12 +691,12 @@ def get_benchmark_list(info, main_ticker):
     return peers[:4]
 
 def get_statement_df(stock, statement_type, statement_period):
-    if statement_type == "Income Statement":
-        raw = stock.income_stmt if statement_period == "Annual" else stock.quarterly_income_stmt
-    elif statement_type == "Balance Sheet":
-        raw = stock.balance_sheet if statement_period == "Annual" else stock.quarterly_balance_sheet
+    if statement_type == "income":
+        raw = stock.income_stmt if statement_period == "annual" else stock.quarterly_income_stmt
+    elif statement_type == "balance":
+        raw = stock.balance_sheet if statement_period == "annual" else stock.quarterly_balance_sheet
     else:
-        raw = stock.cashflow if statement_period == "Annual" else stock.quarterly_cashflow
+        raw = stock.cashflow if statement_period == "annual" else stock.quarterly_cashflow
 
     if raw is None or raw.empty:
         return pd.DataFrame()
@@ -468,11 +704,11 @@ def get_statement_df(stock, statement_type, statement_period):
     df = raw.copy()
     df.columns = [pd.to_datetime(c).strftime("%Y-%m-%d") if not isinstance(c, str) else c for c in df.columns]
     df = df.reset_index()
-    df = df.rename(columns={df.columns[0]: "Concepto"})
+    df = df.rename(columns={df.columns[0]: "Concepto" if st.session_state.lang == "es" else "Concept"})
     return df
 
 # =========================
-# MÉTODOS DE VALORACIÓN
+# VALORACIÓN
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -503,115 +739,81 @@ def compute_valuations(info, currency):
         pv_terminal = terminal / (1 + r) ** 10
         equity = pv + pv_terminal + cash - total_debt
         methods.append({
-            "Método": label,
-            "Tipo": "DCF",
-            "Calidad": calidad,
-            "Valor": equity / shares,
-            "Supuestos": f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
+            tr("method"): label,
+            tr("type"): "DCF",
+            tr("quality"): calidad,
+            tr("intrinsic_value"): equity / shares,
+            tr("assumptions"): f"g {g_high*100:.0f}%→{g_low*100:.0f}%, r {r*100:.0f}%",
         })
 
     if fcf is not None:
-        dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Agresivo", "Media")
-        dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base", "Alta")
-        dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservador", "Alta")
+        dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Aggressive" if st.session_state.lang == "en" else "DCF Agresivo", "Medium" if st.session_state.lang == "en" else "Media")
+        dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base", "High" if st.session_state.lang == "en" else "Alta")
+        dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservative" if st.session_state.lang == "en" else "DCF Conservador", "High" if st.session_state.lang == "en" else "Alta")
 
     if net_income is not None and shares and shares > 0:
-        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto proxy)", "Media")
+        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Net income proxy)" if st.session_state.lang == "en" else "DCF (Bº neto proxy)", "Medium" if st.session_state.lang == "en" else "Media")
 
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
-        for mult, cal in [(8, "Alta"), (10, "Alta"), (12, "Media"), (15, "Media"), (20, "Baja")]:
+        for mult, cal in [(8, "High" if st.session_state.lang == "en" else "Alta"), (10, "High" if st.session_state.lang == "en" else "Alta"), (12, "Medium" if st.session_state.lang == "en" else "Media"), (15, "Medium" if st.session_state.lang == "en" else "Media"), (20, "Low" if st.session_state.lang == "en" else "Baja")]:
             ev = ebitda * mult
             methods.append({
-                "Método": f"EV/EBITDA {mult}×",
-                "Tipo": "Múltiplo",
-                "Calidad": cal,
-                "Valor": (ev + cash - total_debt) / shares,
-                "Supuestos": f"EBITDA={fmt_large(ebitda)}, mult={mult}×",
+                tr("method"): f"EV/EBITDA {mult}×",
+                tr("type"): "Multiple" if st.session_state.lang == "en" else "Múltiplo",
+                tr("quality"): cal,
+                tr("intrinsic_value"): (ev + cash - total_debt) / shares,
+                tr("assumptions"): f"EBITDA={fmt_large(ebitda)}, mult={mult}×",
             })
 
     if ebit is not None and ebit > 0 and shares and shares > 0:
-        for mult, cal in [(10, "Alta"), (14, "Media"), (18, "Baja")]:
+        for mult, cal in [(10, "High" if st.session_state.lang == "en" else "Alta"), (14, "Medium" if st.session_state.lang == "en" else "Media"), (18, "Low" if st.session_state.lang == "en" else "Baja")]:
             ev = ebit * mult
             methods.append({
-                "Método": f"EV/EBIT {mult}×",
-                "Tipo": "Múltiplo",
-                "Calidad": cal,
-                "Valor": (ev + cash - total_debt) / shares,
-                "Supuestos": f"EBIT={fmt_large(ebit)}, mult={mult}×",
+                tr("method"): f"EV/EBIT {mult}×",
+                tr("type"): "Multiple" if st.session_state.lang == "en" else "Múltiplo",
+                tr("quality"): cal,
+                tr("intrinsic_value"): (ev + cash - total_debt) / shares,
+                tr("assumptions"): f"EBIT={fmt_large(ebit)}, mult={mult}×",
             })
 
     eps_use = eps if (eps and eps > 0) else fwd_eps
     if eps_use and eps_use > 0:
-        for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
+        for mult, cal in [(10, "High" if st.session_state.lang == "en" else "Alta"), (15, "High" if st.session_state.lang == "en" else "Alta"), (20, "Medium" if st.session_state.lang == "en" else "Media"), (25, "Medium" if st.session_state.lang == "en" else "Media"), (30, "Low" if st.session_state.lang == "en" else "Baja")]:
             methods.append({
-                "Método": f"P/E {mult}×",
-                "Tipo": "Múltiplo",
-                "Calidad": cal,
-                "Valor": eps_use * mult,
-                "Supuestos": f"EPS={eps_use:.2f}, mult={mult}×",
+                tr("method"): f"P/E {mult}×",
+                tr("type"): "Multiple" if st.session_state.lang == "en" else "Múltiplo",
+                tr("quality"): cal,
+                tr("intrinsic_value"): eps_use * mult,
+                tr("assumptions"): f"EPS={eps_use:.2f}, mult={mult}×",
             })
 
     if revenue is not None and shares and shares > 0:
-        for mult, cal in [(1, "Alta"), (2, "Alta"), (4, "Media"), (6, "Media"), (8, "Baja")]:
+        for mult, cal in [(1, "High" if st.session_state.lang == "en" else "Alta"), (2, "High" if st.session_state.lang == "en" else "Alta"), (4, "Medium" if st.session_state.lang == "en" else "Media"), (6, "Medium" if st.session_state.lang == "en" else "Media"), (8, "Low" if st.session_state.lang == "en" else "Baja")]:
             methods.append({
-                "Método": f"P/Ventas {mult}×",
-                "Tipo": "Múltiplo",
-                "Calidad": cal,
-                "Valor": revenue * mult / shares,
-                "Supuestos": f"Ventas={fmt_large(revenue)}, mult={mult}×",
+                tr("method"): f"P/Sales {mult}×" if st.session_state.lang == "en" else f"P/Ventas {mult}×",
+                tr("type"): "Multiple" if st.session_state.lang == "en" else "Múltiplo",
+                tr("quality"): cal,
+                tr("intrinsic_value"): revenue * mult / shares,
+                tr("assumptions"): f"Revenue={fmt_large(revenue)}, mult={mult}×" if st.session_state.lang == "en" else f"Ventas={fmt_large(revenue)}, mult={mult}×",
             })
 
     if bvps and bvps > 0:
-        for mult, cal in [(1, "Alta"), (1.5, "Alta"), (2, "Media"), (3, "Media"), (4, "Baja")]:
+        for mult, cal in [(1, "High" if st.session_state.lang == "en" else "Alta"), (1.5, "High" if st.session_state.lang == "en" else "Alta"), (2, "Medium" if st.session_state.lang == "en" else "Media"), (3, "Medium" if st.session_state.lang == "en" else "Media"), (4, "Low" if st.session_state.lang == "en" else "Baja")]:
             methods.append({
-                "Método": f"P/Valor Libros {mult}×",
-                "Tipo": "Múltiplo",
-                "Calidad": cal,
-                "Valor": bvps * mult,
-                "Supuestos": f"BVPS={bvps:.2f}, mult={mult}×",
+                tr("method"): f"P/Book {mult}×" if st.session_state.lang == "en" else f"P/Valor Libros {mult}×",
+                tr("type"): "Multiple" if st.session_state.lang == "en" else "Múltiplo",
+                tr("quality"): cal,
+                tr("intrinsic_value"): bvps * mult,
+                tr("assumptions"): f"BVPS={bvps:.2f}, mult={mult}×",
             })
 
-    if eps_use and eps_use > 0 and bvps and bvps > 0:
-        graham = math.sqrt(22.5 * eps_use * bvps)
-        methods.append({
-            "Método": "Graham Number",
-            "Tipo": "Mixto",
-            "Calidad": "Alta",
-            "Valor": graham,
-            "Supuestos": f"√(22.5 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
-        })
-        graham_adj = math.sqrt(15 * eps_use * bvps)
-        methods.append({
-            "Método": "Graham Ajustado (15×)",
-            "Tipo": "Mixto",
-            "Calidad": "Media",
-            "Valor": graham_adj,
-            "Supuestos": f"√(15 × EPS {eps_use:.2f} × BVPS {bvps:.2f})",
-        })
-
-    if div and div > 0:
-        for g_div, r_div, label_div in [
-            (0.02, 0.08, "DDM (g 2%, r 8%)"),
-            (0.03, 0.09, "DDM (g 3%, r 9%)"),
-            (0.05, 0.10, "DDM (g 5%, r 10%)"),
-        ]:
-            if r_div > g_div:
-                val_ddm = div * (1 + g_div) / (r_div - g_div)
-                methods.append({
-                    "Método": label_div,
-                    "Tipo": "DDM",
-                    "Calidad": "Media",
-                    "Valor": val_ddm,
-                    "Supuestos": f"Div={div:.2f}, g={g_div*100:.0f}%, r={r_div*100:.0f}%",
-                })
-
     for m in methods:
-        m["Precio"] = price
+        m[tr("price_now")] = price
         if price and price > 0:
-            upside = (m["Valor"] - price) / price * 100
-            m["Upside %"] = round(upside, 1)
+            upside = (m[tr("intrinsic_value")] - price) / price * 100
+            m[tr("upside")] = round(upside, 1)
         else:
-            m["Upside %"] = None
+            m[tr("upside")] = None
 
     return methods, price
 
@@ -623,41 +825,42 @@ def style_plotly(fig):
         title_font=dict(color=TEXT_PRIMARY),
         legend=dict(bgcolor="rgba(255,255,255,0)", bordercolor=BORDER),
     )
-    fig.update_xaxes(
-        showgrid=False,
-        linecolor=BORDER,
-        tickfont=dict(color=TEXT_SECONDARY),
-    )
-    fig.update_yaxes(
-        gridcolor="rgba(217,200,180,0.45)",
-        linecolor=BORDER,
-        tickfont=dict(color=TEXT_SECONDARY),
-    )
+    fig.update_xaxes(showgrid=False, linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY))
+    fig.update_yaxes(gridcolor="rgba(217,200,180,0.45)", linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY))
     return fig
 
 # =========================
-# HERO
+# HERO + IDIOMA
 # =========================
-st.markdown(
-    """
-    <div class="hero-wrap">
-        <div class="hero-title">Equity Terminal</div>
-        <div class="hero-sub">Value Investing · Análisis fundamental de empresas cotizadas</div>
-    </div>
-    <div class="soft-divider"></div>
-    """,
-    unsafe_allow_html=True,
-)
+top_l, top_r = st.columns([5, 1])
+with top_l:
+    st.markdown(
+        f"""
+        <div class="hero-wrap">
+            <div class="hero-title">Equity Terminal</div>
+            <div class="hero-sub">{tr("hero_sub")}</div>
+        </div>
+        <div class="soft-divider"></div>
+        """,
+        unsafe_allow_html=True,
+    )
+with top_r:
+    selected_lang = st.selectbox(
+        tr("language"),
+        list(LANG_OPTIONS.keys()),
+        index=0 if st.session_state.lang == "es" else 1,
+    )
+    st.session_state.lang = LANG_OPTIONS[selected_lang]
 
 col_search, col_btn = st.columns([4, 1])
 with col_search:
     query = st.text_input(
         "",
-        placeholder="🔎 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
+        placeholder=tr("search_placeholder"),
         label_visibility="collapsed",
     )
 with col_btn:
-    analyze_btn = st.button("Analizar →", use_container_width=True, type="primary")
+    analyze_btn = st.button(tr("analyze"), use_container_width=True, type="primary")
 
 if query != st.session_state.current_query:
     st.session_state.current_query = query
@@ -666,7 +869,7 @@ ticker_sym = ""
 if query:
     suggestions = search_ticker(query)
     if suggestions:
-        choice = st.selectbox("Sugerencias", suggestions, label_visibility="collapsed")
+        choice = st.selectbox(tr("ticker_suggestions"), suggestions, label_visibility="collapsed")
         ticker_sym = choice.split(" — ")[0].strip()
     else:
         ticker_sym = query.strip().upper()
@@ -674,13 +877,13 @@ if query:
 if analyze_btn and ticker_sym:
     st.session_state.analyzed_ticker = ticker_sym
 
-with st.expander("⚙️ Opciones de análisis", expanded=False):
+with st.expander(tr("options"), expanded=False):
     op1, op2 = st.columns([1, 2])
     with op1:
-        period = st.selectbox("Período histórico", ["1y", "3y", "5y", "10y"], index=1)
+        period = st.selectbox(tr("period"), ["1y", "3y", "5y", "10y"], index=1)
     with op2:
         corr_tickers_input = st.text_input(
-            "Tickers para correlación y cartera (separados por comas)",
+            tr("corr_input"),
             value="AAPL, MSFT, GOOGL, AMZN, META",
         )
 
@@ -690,10 +893,10 @@ if not st.session_state.analyzed_ticker:
         <div style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
             <div style="font-size:3rem;">🏦</div>
             <div style="font-size:1.1rem; margin-top:0.5rem;">
-                Introduce el nombre o ticker de una empresa y pulsa <b>Analizar →</b>
+                {tr("welcome_1")} <b>{tr("analyze")}</b>
             </div>
             <div style="font-size:0.85rem; margin-top:0.5rem;">
-                Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex
+                {tr("welcome_2")}
             </div>
         </div>
         """,
@@ -706,18 +909,18 @@ active_ticker = st.session_state.analyzed_ticker
 # =========================
 # DATOS
 # =========================
-with st.spinner(f"Cargando datos de {active_ticker}..."):
+with st.spinner(f"{tr('loading_data')} {active_ticker}..."):
     try:
         stock = yf.Ticker(active_ticker)
         info = stock.info
         hist = stock.history(period=period)
     except Exception as e:
-        st.error(f"Error al obtener datos: {e}")
+        st.error(f"{tr('data_error')}: {e}")
         st.stop()
 
 price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
 if price is None:
-    st.error("No se pudo obtener el precio de mercado. Verifica el ticker.")
+    st.error(tr("price_error"))
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
@@ -743,13 +946,13 @@ beta_v = fmt_num(info.get("beta"))
 
 k1, k2, k3, k4 = st.columns(4)
 with k1:
-    metric_card("Market Cap", mc)
+    metric_card(tr("market_cap"), mc)
 with k2:
-    metric_card("52W Máx", f"{high52} {currency}")
+    metric_card(tr("high_52w"), f"{high52} {currency}")
 with k3:
-    metric_card("52W Mín", f"{low52} {currency}")
+    metric_card(tr("low_52w"), f"{low52} {currency}")
 with k4:
-    metric_card("Beta", beta_v)
+    metric_card(tr("beta"), beta_v)
 
 returns = None
 
@@ -758,45 +961,39 @@ returns = None
 # =========================
 tab_emp, tab_rat, tab_fin, tab_val, tab_bench, tab_corr, tab_price, tab_port = st.tabs(
     [
-        "Empresa",
-        "Ratios",
-        "Estados financieros",
-        "Valoración",
-        "Benchmarks",
-        "Correlaciones",
-        "Precio",
-        "Optimización de Cartera",
+        tr("company"),
+        tr("ratios"),
+        tr("statements"),
+        tr("valuation"),
+        tr("benchmarks"),
+        tr("correlations"),
+        tr("price"),
+        tr("portfolio"),
     ]
 )
 
-# =========================
-# TAB EMPRESA
-# =========================
 with tab_emp:
     c1, c2 = st.columns([2, 1])
     with c1:
-        st.markdown('<div class="section-title">Descripción</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">{tr("description")}</div>', unsafe_allow_html=True)
         desc = info.get("longBusinessSummary")
         if desc:
-            st.write(desc)
+            st.write(translate_text(desc))
         else:
-            st.info("No hay descripción disponible.")
+            st.info(tr("no_description"))
     with c2:
-        st.markdown('<div class="section-title">Datos corporativos</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">{tr("corporate_data")}</div>', unsafe_allow_html=True)
         employees = info.get("fullTimeEmployees")
         for label, val in [
-            ("País", info.get("country", "N/A")),
-            ("Ciudad", info.get("city", "N/A")),
-            ("Exchange", info.get("exchange", "N/A")),
-            ("Empleados", f"{employees:,}" if employees else "N/A"),
-            ("Sector", sector),
-            ("Industria", industry),
+            (tr("country"), info.get("country", "N/A")),
+            (tr("city"), info.get("city", "N/A")),
+            (tr("exchange"), info.get("exchange", "N/A")),
+            (tr("employees"), f"{employees:,}" if employees else "N/A"),
+            (tr("sector"), sector),
+            (tr("industry"), industry),
         ]:
             metric_card(label, val)
 
-# =========================
-# TAB RATIOS
-# =========================
 with tab_rat:
     pe = safe_float(info.get("trailingPE"))
     fwd_pe = safe_float(info.get("forwardPE"))
@@ -820,13 +1017,13 @@ with tab_rat:
     with col2:
         metric_card("ROE", fmt_num(roe*100 if roe else None, 1, "%"))
         metric_card("ROA", fmt_num(roa*100 if roa else None, 1, "%"))
-        metric_card("Margen bruto", fmt_num(gross_margin*100 if gross_margin else None, 1, "%"))
-        metric_card("Margen neto", fmt_num(profit_margin*100 if profit_margin else None, 1, "%"))
+        metric_card(tr("gross_margin"), fmt_num(gross_margin*100 if gross_margin else None, 1, "%"))
+        metric_card(tr("net_margin"), fmt_num(profit_margin*100 if profit_margin else None, 1, "%"))
     with col3:
-        metric_card("Deuda/Equity", fmt_num(debt_equity))
-        metric_card("Current ratio", fmt_num(current_ratio))
-        metric_card("Quick ratio", fmt_num(quick_ratio))
-        metric_card("Dividend yield", fmt_num(dividend_yield*100 if dividend_yield else None, 2, "%"))
+        metric_card(tr("debt_equity"), fmt_num(debt_equity))
+        metric_card(tr("current_ratio"), fmt_num(current_ratio))
+        metric_card(tr("quick_ratio"), fmt_num(quick_ratio))
+        metric_card(tr("dividend_yield"), fmt_num(dividend_yield*100 if dividend_yield else None, 2, "%"))
 
     def norm(v, lo, hi):
         v2 = safe_float(v, None)
@@ -834,7 +1031,7 @@ with tab_rat:
             return 0.0
         return max(0.0, min(1.0, (v2 - lo) / (hi - lo)))
 
-    radar_labels = ["ROE", "ROA", "Margen neto", "P/E bajo", "Deuda baja", "Liquidez"]
+    radar_labels = ["ROE", "ROA", tr("net_margin"), "Low P/E" if st.session_state.lang == "en" else "P/E bajo", "Low debt" if st.session_state.lang == "en" else "Deuda baja", "Liquidity" if st.session_state.lang == "en" else "Liquidez"]
     radar_values = [
         norm(roe*100 if roe else None, 0, 40),
         norm(roa*100 if roa else None, 0, 20),
@@ -856,134 +1053,132 @@ with tab_rat:
         )
     )
     fig_radar.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, 1], gridcolor="rgba(217,200,180,0.45)")
-        ),
+        polar=dict(radialaxis=dict(visible=True, range=[0, 1], gridcolor="rgba(217,200,180,0.45)")),
         showlegend=False,
         height=350,
     )
     style_plotly(fig_radar)
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# =========================
-# TAB ESTADOS FINANCIEROS
-# =========================
 with tab_fin:
-    st.markdown('<div class="section-title">Estados financieros</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-sub">Consulta históricos anuales o trimestrales de resultados, balance y flujo de caja.</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="section-title">{tr("states_title")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-sub">{tr("company_section_sub")}</div>', unsafe_allow_html=True)
 
     f1, f2 = st.columns([1, 1])
     with f1:
-        statement_type = st.selectbox(
-            "Tipo de estado",
-            ["Income Statement", "Balance Sheet", "Cash Flow"]
+        statement_type_label = st.selectbox(
+            tr("statement_type"),
+            [tr("income_statement"), tr("balance_sheet"), tr("cash_flow")]
         )
     with f2:
-        statement_period = st.selectbox(
-            "Periodicidad",
-            ["Annual", "Quarterly"]
+        statement_period_label = st.selectbox(
+            tr("periodicity"),
+            [tr("annual"), tr("quarterly")]
         )
 
-    df_fin = get_statement_df(stock, statement_type, statement_period)
+    statement_type_map = {
+        tr("income_statement"): "income",
+        tr("balance_sheet"): "balance",
+        tr("cash_flow"): "cash",
+    }
+    statement_period_map = {
+        tr("annual"): "annual",
+        tr("quarterly"): "quarterly",
+    }
+
+    df_fin = get_statement_df(
+        stock,
+        statement_type_map[statement_type_label],
+        statement_period_map[statement_period_label]
+    )
 
     if df_fin.empty:
-        st.warning("No hay datos disponibles para este estado financiero.")
+        st.warning(tr("no_statement_data"))
     else:
-        cols_periods = [c for c in df_fin.columns if c != "Concepto"]
+        cols_periods = [c for c in df_fin.columns if c not in ["Concepto", "Concept"]]
 
-        st.markdown('<div class="section-title">Tabla histórica</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">{tr("historical_table")}</div>', unsafe_allow_html=True)
         render_champagne_table(df_fin)
 
-        st.markdown('<div class="section-title" style="margin-top:1.2rem;">Comparativa visual</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title" style="margin-top:1.2rem;">{tr("visual_comparison")}</div>', unsafe_allow_html=True)
+
+        concept_col = "Concepto" if "Concepto" in df_fin.columns else "Concept"
 
         default_candidates = [
-            "Total Revenue",
-            "Net Income",
-            "Operating Income",
-            "EBITDA",
-            "Gross Profit",
-            "Free Cash Flow",
-            "Operating Cash Flow",
-            "Cash And Cash Equivalents",
-            "Total Assets",
-            "Total Debt",
-            "Stockholders Equity",
+            "Total Revenue", "Net Income", "Operating Income", "EBITDA", "Gross Profit",
+            "Free Cash Flow", "Operating Cash Flow", "Cash And Cash Equivalents",
+            "Total Assets", "Total Debt", "Stockholders Equity"
         ]
-        available_concepts = df_fin["Concepto"].astype(str).tolist()
+        available_concepts = df_fin[concept_col].astype(str).tolist()
         default_selected = [x for x in default_candidates if x in available_concepts][:4]
         if not default_selected and len(available_concepts) > 0:
             default_selected = available_concepts[:3]
 
         selected_metrics = st.multiselect(
-            "Selecciona partidas para graficar",
+            tr("select_items"),
             options=available_concepts,
             default=default_selected
         )
 
         if selected_metrics:
-            df_plot = df_fin[df_fin["Concepto"].isin(selected_metrics)].copy()
+            df_plot = df_fin[df_fin[concept_col].isin(selected_metrics)].copy()
             df_plot_long = df_plot.melt(
-                id_vars="Concepto",
+                id_vars=concept_col,
                 value_vars=cols_periods,
-                var_name="Fecha",
-                value_name="Valor"
+                var_name="Fecha" if st.session_state.lang == "es" else "Date",
+                value_name="Valor" if st.session_state.lang == "es" else "Value"
             )
-            df_plot_long["Valor"] = pd.to_numeric(df_plot_long["Valor"], errors="coerce")
-            df_plot_long = df_plot_long.dropna(subset=["Valor"])
+            value_col = "Valor" if st.session_state.lang == "es" else "Value"
+            date_col = "Fecha" if st.session_state.lang == "es" else "Date"
+            df_plot_long[value_col] = pd.to_numeric(df_plot_long[value_col], errors="coerce")
+            df_plot_long = df_plot_long.dropna(subset=[value_col])
 
             fig_fin = px.line(
                 df_plot_long,
-                x="Fecha",
-                y="Valor",
-                color="Concepto",
+                x=date_col,
+                y=value_col,
+                color=concept_col,
                 markers=True,
                 color_discrete_sequence=CHART_COLORS,
             )
-            fig_fin.update_layout(height=430, yaxis_title="Valor reportado")
+            fig_fin.update_layout(height=430, yaxis_title=value_col)
             style_plotly(fig_fin)
             st.plotly_chart(fig_fin, use_container_width=True)
 
-            with st.expander("Ver tabla interactiva adicional"):
+            with st.expander(tr("interactive_table")):
                 st.dataframe(df_fin, use_container_width=True, hide_index=True)
         else:
-            st.info("Selecciona al menos una partida para mostrar la comparativa.")
+            st.info(tr("select_min_item"))
 
-# =========================
-# TAB VALORACIÓN
-# =========================
 with tab_val:
-    st.markdown('<div class="section-title">Valoración intrínseca</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-sub">Resumen de métodos, calidad, valor intrínseco y rango de upside.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{tr("intrinsic_valuation")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-sub">{tr("valuation_sub")}</div>', unsafe_allow_html=True)
 
     methods, current_price = compute_valuations(info, currency)
 
     if not methods:
-        st.warning("No se pudieron calcular valoraciones por falta de datos.")
+        st.warning(tr("calc_fail"))
     else:
         df_val = pd.DataFrame(methods)
-        df_val = df_val[["Método", "Tipo", "Calidad", "Valor", "Precio", "Upside %", "Supuestos"]]
 
         def rango_upside(u):
             if pd.isna(u):
                 return "N/A"
             if u >= 40:
-                return "Muy infravalorado"
+                return tr("very_undervalued")
             if u >= 20:
-                return "Infravalorado"
+                return tr("undervalued")
             if u >= -10:
-                return "En línea"
+                return tr("fair_value")
             if u >= -30:
-                return "Sobrevalorado"
-            return "Muy sobrevalorado"
+                return tr("overvalued")
+            return tr("very_overvalued")
 
-        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
+        df_val[tr("interpretation")] = df_val[tr("upside")].apply(rango_upside)
 
         def score_row(row):
-            u = row["Upside %"]
-            cal = row["Calidad"]
+            u = row[tr("upside")]
+            cal = str(row[tr("quality")]).lower()
             if pd.isna(u):
                 base = 2
             elif u >= 40:
@@ -997,14 +1192,14 @@ with tab_val:
             else:
                 base = 1
 
-            if cal == "Alta":
+            if cal in ["alta", "high"]:
                 base = min(base + 1, 5)
-            elif cal == "Baja":
+            elif cal in ["baja", "low"]:
                 base = max(base - 1, 1)
 
             return "★" * base + "☆" * (5 - base)
 
-        df_val["Score"] = df_val.apply(score_row, axis=1)
+        df_val[tr("score")] = df_val.apply(score_row, axis=1)
 
         def fmt_val(v):
             return f"{v:.2f}" if pd.notna(v) else "N/A"
@@ -1013,105 +1208,97 @@ with tab_val:
             return f"{u:+.1f}%" if pd.notna(u) else "N/A"
 
         df_tabla = pd.DataFrame({
-            "Método": df_val["Método"],
-            "Tipo": df_val["Tipo"],
-            "Score": df_val["Score"],
-            "Upside (%)": df_val["Upside %"].apply(fmt_up),
-            "Valor intrínseco": df_val["Valor"].apply(fmt_val),
-            "Precio actual": df_val["Precio"].apply(fmt_val),
-            "Calidad": df_val["Calidad"],
-            "Interpretación": df_val["Interpretación"],
-            "Supuestos": df_val["Supuestos"],
+            tr("method"): df_val[tr("method")],
+            tr("type"): df_val[tr("type")],
+            tr("score"): df_val[tr("score")],
+            tr("upside"): df_val[tr("upside")].apply(fmt_up),
+            tr("intrinsic_value"): df_val[tr("intrinsic_value")].apply(fmt_val),
+            tr("price_now"): df_val[tr("price_now")].apply(fmt_val),
+            tr("quality"): df_val[tr("quality")],
+            tr("interpretation"): df_val[tr("interpretation")],
+            tr("assumptions"): df_val[tr("assumptions")],
         })
 
-        df_tabla = df_tabla.reindex(df_val.sort_values("Upside %", ascending=False).index)
-        render_champagne_table(df_tabla, pills_cols=["Calidad", "Interpretación"])
+        df_tabla = df_tabla.reindex(df_val.sort_values(tr("upside"), ascending=False).index)
+        render_champagne_table(df_tabla, pills_cols=[tr("quality"), tr("interpretation")])
 
-        upsides = df_val["Upside %"].dropna()
+        upsides = df_val[tr("upside")].dropna()
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            metric_card("Métodos calculados", str(len(df_val)))
+            metric_card(tr("methods_calc"), str(len(df_val)))
         with m2:
-            metric_card("Upside mediano", f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
+            metric_card(tr("median_upside"), f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
         with m3:
-            metric_card("Upside medio", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A")
+            metric_card(tr("mean_upside"), f"{upsides.mean():+.1f}%" if len(upsides) else "N/A")
         with m4:
-            metric_card("Rango upside", f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A")
+            metric_card(tr("range_upside"), f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A")
 
+        type_multiple = "Multiple" if st.session_state.lang == "en" else "Múltiplo"
         fig_val = px.strip(
             df_val,
-            x="Upside %",
-            y="Tipo",
-            color="Tipo",
-            hover_data=["Método", "Valor", "Supuestos"],
+            x=tr("upside"),
+            y=tr("type"),
+            color=tr("type"),
+            hover_data=[tr("method"), tr("intrinsic_value"), tr("assumptions")],
             color_discrete_map={
                 "DCF": CHART_COLORS[0],
-                "Múltiplo": CHART_COLORS[1],
+                type_multiple: CHART_COLORS[1],
                 "Mixto": CHART_COLORS[2],
+                "Mixed": CHART_COLORS[2],
                 "DDM": CHART_COLORS[4],
             },
         )
         fig_val.add_vline(x=0, line_dash="dash", line_color="#8B7355", opacity=0.6)
         fig_val.add_vline(x=30, line_dash="dot", line_color=ACCENT_GREEN, opacity=0.6)
-        fig_val.update_layout(height=350, xaxis_title="Upside vs precio actual (%)")
+        fig_val.update_layout(height=350, xaxis_title=tr("upside"))
         style_plotly(fig_val)
         st.plotly_chart(fig_val, use_container_width=True)
 
         fig_bar = px.bar(
-            df_val.sort_values("Valor"),
-            x="Valor",
-            y="Método",
-            color="Tipo",
+            df_val.sort_values(tr("intrinsic_value")),
+            x=tr("intrinsic_value"),
+            y=tr("method"),
+            color=tr("type"),
             orientation="h",
-            color_discrete_map={
-                "DCF": CHART_COLORS[0],
-                "Múltiplo": CHART_COLORS[1],
-                "Mixto": CHART_COLORS[2],
-                "DDM": CHART_COLORS[4],
-            },
-            title=f"Valor intrínseco por método vs precio actual ({current_price:.2f} {currency})",
+            color_discrete_sequence=CHART_COLORS,
         )
         fig_bar.add_vline(x=current_price, line_dash="dash", line_color=ACCENT_RED)
         fig_bar.update_layout(height=max(400, len(df_val) * 22))
         style_plotly(fig_bar)
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# =========================
-# TAB BENCHMARKS
-# =========================
 with tab_bench:
-    st.markdown('<div class="section-title">Comparables del sector</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-sub">Múltiplos y rentabilidad frente a empresas de referencia.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{tr("comparables_title")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-sub">{tr("bench_sub")}</div>', unsafe_allow_html=True)
 
     peers = get_benchmark_list(info, active_ticker)
     if not peers:
-        st.info("No hay benchmarks definidos para este sector.")
+        st.info(tr("no_benchmarks"))
     else:
         tickers_all = [active_ticker] + peers
-        with st.spinner("Descargando datos de benchmarks..."):
+        with st.spinner(tr("download_bench")):
             data = {}
             for t in tickers_all:
                 try:
                     tk = yf.Ticker(t)
                     inf = tk.info
                     data[t] = {
-                        "Nombre": inf.get("shortName", t),
+                        "Ticker": t,
+                        "Nombre" if st.session_state.lang == "es" else "Name": inf.get("shortName", t),
                         "P/E": safe_float(inf.get("trailingPE")),
                         "P/B": safe_float(inf.get("priceToBook")),
                         "ROE": safe_float(inf.get("returnOnEquity")),
-                        "Margen neto": safe_float(inf.get("profitMargins")),
-                        "Precio": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
-                        "Market Cap": safe_float(inf.get("marketCap")),
+                        tr("net_margin"): safe_float(inf.get("profitMargins")),
+                        tr("price_now"): safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        tr("market_cap"): safe_float(inf.get("marketCap")),
                     }
                 except Exception:
                     continue
 
         if len(data) <= 1:
-            st.warning("No se pudieron cargar datos de benchmarks.")
+            st.warning(tr("bench_error"))
         else:
-            df_bench = pd.DataFrame.from_dict(data, orient="index")
-            df_bench.index.name = "Ticker"
-            df_bench.reset_index(inplace=True)
+            df_bench = pd.DataFrame.from_dict(data, orient="index").reset_index(drop=True)
 
             def fmt_pe(x):
                 return f"{x:.1f}" if pd.notna(x) else "N/A"
@@ -1125,18 +1312,19 @@ with tab_bench:
             def fmt_mc(x):
                 return fmt_large(x)
 
+            name_col = "Nombre" if st.session_state.lang == "es" else "Name"
             df_view = pd.DataFrame({
                 "Ticker": df_bench["Ticker"],
-                "Nombre": df_bench["Nombre"],
-                "Precio": df_bench["Precio"].apply(fmt_price),
+                name_col: df_bench[name_col],
+                tr("price_now"): df_bench[tr("price_now")].apply(fmt_price),
                 "P/E": df_bench["P/E"].apply(fmt_pe),
                 "P/B": df_bench["P/B"].apply(fmt_pe),
                 "ROE": df_bench["ROE"].apply(fmt_ratio),
-                "Margen neto": df_bench["Margen neto"].apply(fmt_ratio),
-                "Market Cap": df_bench["Market Cap"].apply(fmt_mc),
+                tr("net_margin"): df_bench[tr("net_margin")].apply(fmt_ratio),
+                tr("market_cap"): df_bench[tr("market_cap")].apply(fmt_mc),
             })
 
-            df_view = df_view.reindex(df_bench.sort_values("Market Cap", ascending=False).index)
+            df_view = df_view.reindex(df_bench.sort_values(tr("market_cap"), ascending=False).index)
             render_champagne_table(df_view)
 
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
@@ -1165,28 +1353,23 @@ with tab_bench:
             style_plotly(fig_comp)
             st.plotly_chart(fig_comp, use_container_width=True)
 
-# =========================
-# TAB CORRELACIONES
-# =========================
 with tab_corr:
-    st.markdown('<div class="section-title">Correlación de rentabilidades</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{tr("corr_title")}</div>', unsafe_allow_html=True)
 
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
     if active_ticker not in corr_tickers:
         corr_tickers.insert(0, active_ticker)
 
-    with st.spinner("Descargando precios históricos..."):
+    with st.spinner(tr("download_hist")):
         try:
             df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
-
             if isinstance(df_download.columns, pd.MultiIndex):
                 prices = df_download.xs("Close", level=0, axis=1, drop_level=True)
             else:
                 prices = df_download["Close"].to_frame(name=corr_tickers[0]) if len(corr_tickers) == 1 else df_download["Close"]
-
             returns = prices.pct_change().dropna()
         except Exception as e:
-            st.error(f"No se pudo descargar precios: {e}")
+            st.error(f"{tr('data_error')}: {e}")
             returns = None
 
     if returns is not None and not returns.empty:
@@ -1197,18 +1380,15 @@ with tab_corr:
         st.plotly_chart(fig_corr, use_container_width=True)
 
         cum = (1 + returns).cumprod()
-        fig_cum = px.line(cum, labels={"value": "Retorno acumulado", "index": "Fecha"}, color_discrete_sequence=CHART_COLORS)
+        fig_cum = px.line(cum, labels={"value": "Cumulative Return" if st.session_state.lang == "en" else "Retorno acumulado", "index": "Date" if st.session_state.lang == "en" else "Fecha"}, color_discrete_sequence=CHART_COLORS)
         fig_cum.update_layout(height=400)
         style_plotly(fig_cum)
         st.plotly_chart(fig_cum, use_container_width=True)
 
-# =========================
-# TAB PRECIO
-# =========================
 with tab_price:
-    st.markdown('<div class="section-title">Histórico de precio y volumen</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{tr("price_title")}</div>', unsafe_allow_html=True)
     if hist is None or hist.empty:
-        st.warning("No hay datos históricos disponibles.")
+        st.warning(tr("no_hist_data"))
     else:
         fig_price = make_subplots(
             rows=2,
@@ -1234,7 +1414,7 @@ with tab_price:
             go.Bar(
                 x=hist.index,
                 y=hist["Volume"],
-                name="Volumen",
+                name="Volume" if st.session_state.lang == "en" else "Volumen",
                 marker_color=ACCENT_GOLD_SOFT,
             ),
             row=2, col=1,
@@ -1243,23 +1423,20 @@ with tab_price:
         style_plotly(fig_price)
         st.plotly_chart(fig_price, use_container_width=True)
 
-# =========================
-# TAB CARTERA
-# =========================
 with tab_port:
-    st.markdown('<div class="section-title">Optimización de Cartera de Markowitz</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{tr("portfolio_title")}</div>', unsafe_allow_html=True)
 
     if returns is not None and not returns.empty:
-        st.markdown('<div class="section-sub">Configura las variables para optimizar tu selección actual de activos.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-sub">{tr("portfolio_sub")}</div>', unsafe_allow_html=True)
 
         c_opt1, c_opt2 = st.columns(2)
         with c_opt1:
             objetivo = st.selectbox(
-                "Objetivo del Optimizador",
-                ["Maximizar Ratio Sharpe (Eficiencia)", "Minimizar Varianza (Mínimo Riesgo)"]
+                tr("optimizer_goal"),
+                [tr("sharpe_max"), tr("min_var")]
             )
         with c_opt2:
-            rf_rate = st.number_input("Tasa libre de riesgo anualizada (%)", value=4.0, step=0.1) / 100
+            rf_rate = st.number_input(tr("rf_rate"), value=4.0, step=0.1) / 100
 
         num_activos = len(corr_tickers)
         rendimientos_medios = returns.mean() * 252
@@ -1273,7 +1450,7 @@ with tab_port:
             return r_cartera, vol_cartera, sharpe
 
         def funcion_a_minimizar(weights):
-            if objetivo == "Maximizar Ratio Sharpe (Eficiencia)":
+            if objetivo == tr("sharpe_max"):
                 return -estadisticas_cartera(weights)[2]
             return estadisticas_cartera(weights)[1]
 
@@ -1295,30 +1472,35 @@ with tab_port:
 
             c1, c2, c3 = st.columns(3)
             with c1:
-                metric_card("Retorno Esperado Anual", f"{r_opt*100:.2f}%")
+                metric_card(tr("expected_return"), f"{r_opt*100:.2f}%")
             with c2:
-                metric_card("Volatilidad de la Cartera", f"{vol_opt*100:.2f}%")
+                metric_card(tr("portfolio_vol"), f"{vol_opt*100:.2f}%")
             with c3:
-                metric_card("Ratio Sharpe Resultante", f"{sharpe_opt:.2f}")
+                metric_card(tr("portfolio_sharpe"), f"{sharpe_opt:.2f}")
 
             df_pesos = pd.DataFrame({
-                "Activo": corr_tickers,
-                "Ponderación Óptima (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
-                "Fracción Decimal": np.round(pesos_optimos, 4),
-            }).sort_values(by="Fracción Decimal", ascending=False)
+                "Activo" if st.session_state.lang == "es" else "Asset": corr_tickers,
+                "Ponderación Óptima (%)" if st.session_state.lang == "es" else "Optimal Weight (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
+                "Fracción Decimal" if st.session_state.lang == "es" else "Decimal Weight": np.round(pesos_optimos, 4),
+            }).sort_values(
+                by="Fracción Decimal" if st.session_state.lang == "es" else "Decimal Weight",
+                ascending=False
+            )
 
             render_champagne_table(df_pesos)
 
+            values_col = "Fracción Decimal" if st.session_state.lang == "es" else "Decimal Weight"
+            names_col = "Activo" if st.session_state.lang == "es" else "Asset"
             fig_pie = px.pie(
-                df_pesos[df_pesos["Fracción Decimal"] > 0.001],
-                values="Fracción Decimal",
-                names="Activo",
-                title=f"Distribución recomendada de capital ({objetivo})",
+                df_pesos[df_pesos[values_col] > 0.001],
+                values=values_col,
+                names=names_col,
+                title=f"{tr('opt_weights')} ({objetivo})",
                 color_discrete_sequence=CHART_COLORS,
             )
             style_plotly(fig_pie)
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.error("El algoritmo matemático de optimización no pudo converger en una solución válida.")
+            st.error(tr("optimizer_fail"))
     else:
-        st.warning("Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.")
+        st.warning(tr("insufficient_hist"))
