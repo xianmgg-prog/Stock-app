@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -217,7 +218,7 @@ TEXTS = {
 }
 
 # =========================
-# CSS
+# CSS GLOBAL
 # =========================
 st.markdown(
     f"""
@@ -242,16 +243,6 @@ st.markdown(
         0%   {{ opacity: 0; transform: translateY(10px); }}
         100% {{ opacity: 1; transform: translateY(0); }}
     }}
-    .metric-card {{
-        background: linear-gradient(180deg, {CARD_BG} 0%, {CARD_BG_2} 100%);
-        border: 1px solid {BORDER}; border-radius: 16px;
-        padding: 1rem 1rem 0.95rem 1rem;
-        box-shadow: 0 8px 24px rgba(120,93,61,0.06);
-        margin-bottom: 0.5rem;
-    }}
-    .metric-label {{ color: {TEXT_SECONDARY}; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.11em; margin-bottom: 0.25rem; }}
-    .metric-value {{ color: {TEXT_PRIMARY}; font-size: 1.15rem; font-weight: 700; line-height: 1.2; }}
-    .metric-sub   {{ color: {TEXT_SECONDARY}; font-size: 0.75rem; margin-top: 0.18rem; }}
     .company-header {{
         background: linear-gradient(180deg, rgba(255,253,249,0.92) 0%, rgba(249,244,236,0.92) 100%);
         border: 1px solid {BORDER}; border-radius: 18px;
@@ -317,7 +308,7 @@ st.markdown(
 )
 
 # =========================
-# HELPERS GENERALES
+# HELPERS
 # =========================
 lang = st.session_state.language
 T    = TEXTS[lang]
@@ -365,24 +356,36 @@ def fmt_large(x):
     elif v >= 1e6: return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
 
+# ── METRIC CARD via components.html (evita el bug </div> de st.markdown) ──
 def metric_card(label, value, sub=None):
-    sub_html = '<div class="metric-sub">' + str(sub) + '</div>' if sub else ""
+    sub_html = f'<div class="mc-sub">{sub}</div>' if sub else ""
     html = (
-        '<div class="metric-card">'
-        '<div class="metric-label">' + str(label) + '</div>'
-        '<div class="metric-value">' + str(value) + '</div>'
+        "<style>"
+        ".mc{background:linear-gradient(180deg,#FFFDF9 0%,#F9F4EC 100%);"
+        "border:1px solid #D9C8B4;border-radius:16px;"
+        "padding:1rem 1rem 0.95rem 1rem;"
+        "box-shadow:0 8px 24px rgba(120,93,61,0.06);"
+        "font-family:'Inter','Segoe UI',sans-serif;}"
+        ".mc-label{color:#7A6856;font-size:0.72rem;text-transform:uppercase;"
+        "letter-spacing:0.11em;margin-bottom:0.25rem;}"
+        ".mc-value{color:#2F241B;font-size:1.15rem;font-weight:700;line-height:1.2;}"
+        ".mc-sub{color:#7A6856;font-size:0.75rem;margin-top:0.18rem;}"
+        "</style>"
+        '<div class="mc">'
+        '<div class="mc-label">' + str(label) + "</div>"
+        '<div class="mc-value">' + str(value) + "</div>"
         + sub_html +
-        '</div>'
+        "</div>"
     )
-    st.markdown(html, unsafe_allow_html=True)
+    components.html(html, height=95)
 
 def render_company_header(company_name, ticker, sector, industry, currency, price, delta_html=""):
     html = (
         '<div class="company-header fade-container">'
-        '<div class="company-name">' + company_name + '</div>'
-        '<div class="company-meta">' + ticker + ' · ' + sector + ' · ' + industry + ' · ' + currency + '</div>'
-        '<div class="company-price">' + f"{price:.2f}" + ' ' + currency + ' ' + delta_html + '</div>'
-        '</div>'
+        '<div class="company-name">' + company_name + "</div>"
+        '<div class="company-meta">' + ticker + " · " + sector + " · " + industry + " · " + currency + "</div>"
+        '<div class="company-price">' + f"{price:.2f}" + " " + currency + " " + delta_html + "</div>"
+        "</div>"
     )
     st.markdown(html, unsafe_allow_html=True)
 
@@ -410,7 +413,7 @@ def render_champagne_table(df: pd.DataFrame, pills_cols=None, html_cols=None):
             if col in html_cols:
                 html += "<td>" + display + "</td>"
             elif col in pills_cols:
-                html += '<td><span class="' + pill_class(display) + '">' + display + '</span></td>'
+                html += '<td><span class="' + pill_class(display) + '">' + display + "</span></td>"
             else:
                 html += "<td>" + display + "</td>"
         html += "</tr>"
@@ -469,7 +472,6 @@ def format_financial_df(df):
 # SEC HELPERS
 # =========================
 SEC_BASE    = "https://data.sec.gov"
-# ⚠️ CAMBIA por tu nombre y email real
 SEC_HEADERS = {
     "User-Agent":      "EquityTerminal/1.0 tucorreo@tudominio.com",
     "Accept-Encoding": "gzip, deflate",
@@ -488,8 +490,7 @@ def get_cik_from_ticker_us(ticker: str):
         resp.raise_for_status()
         ticker_norm = ticker.upper().replace(".US","").replace("-","").replace(".","")
         for entry in resp.json().values():
-            entry_norm = entry["ticker"].upper().replace("-","").replace(".","")
-            if entry_norm == ticker_norm:
+            if entry["ticker"].upper().replace("-","").replace(".","") == ticker_norm:
                 return str(entry["cik_str"]).zfill(10)
         return None
     except Exception:
@@ -567,20 +568,11 @@ def get_sec_filings_metadata(cik: str, form_types=None, limit=30):
 # CNMV & BOLSAS EUROPEAS
 # =========================
 REGULATORY_SOURCES = {
-    ".MC": "CNMV",
-    ".L":  "FCA",
-    ".PA": "AMF",
-    ".AS": "AFM",
-    ".MI": "CONSOB",
-    ".BR": "FSMA",
-    ".LS": "CMVM",
-    ".DE": "BaFin",
-    ".VI": "FMA",
-    ".SW": "FINMA",
-    ".ST": "FI",
-    ".HE": "FIN-FSA",
-    ".CO": "DFSA",
-    ".OL": "Finanstilsynet",
+    ".MC": "CNMV",    ".L":  "FCA",    ".PA": "AMF",
+    ".AS": "AFM",     ".MI": "CONSOB", ".BR": "FSMA",
+    ".LS": "CMVM",    ".DE": "BaFin",  ".VI": "FMA",
+    ".SW": "FINMA",   ".ST": "FI",     ".HE": "FIN-FSA",
+    ".CO": "DFSA",    ".OL": "Finanstilsynet",
 }
 
 REGULATORY_SEARCH_LINKS = {
@@ -613,9 +605,9 @@ def get_cnmv_hechos_relevantes(ticker_base: str, limit: int = 30) -> pd.DataFram
                     vals = [str(v).strip() for v in row.values if pd.notna(v)]
                     if len(vals) >= 2:
                         rows.append({
-                            "Tipo":         "Hecho Relevante",
-                            "Descripción":  vals[1] if len(vals) > 1 else vals[0],
-                            "Fecha":        vals[0],
+                            "Tipo": "Hecho Relevante",
+                            "Descripción": vals[1] if len(vals) > 1 else vals[0],
+                            "Fecha": vals[0],
                             "Ver documento": '<a href="https://www.cnmv.es/portal/hr/busquedahr?nombre=' + ticker_base + '&lang=es" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 CNMV</a>',
                         })
                     if len(rows) >= limit:
@@ -626,10 +618,10 @@ def get_cnmv_hechos_relevantes(ticker_base: str, limit: int = 30) -> pd.DataFram
         pass
     if not rows:
         rows.append({
-            "Tipo":         "Portal CNMV",
-            "Descripción":  "Consulta directa para " + ticker_base + " en el portal oficial",
-            "Fecha":        "—",
-            "Ver documento": '<a href="https://www.cnmv.es/portal/hr/busquedahr?nombre=' + ticker_base + '&lang=es" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Abrir buscador CNMV</a>',
+            "Tipo": "Portal CNMV",
+            "Descripción": "Consulta directa para " + ticker_base,
+            "Fecha": "—",
+            "Ver documento": '<a href="https://www.cnmv.es/portal/hr/busquedahr?nombre=' + ticker_base + '&lang=es" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Abrir CNMV</a>',
         })
     return pd.DataFrame(rows)
 
@@ -651,20 +643,19 @@ def get_euronext_filings(ticker_base: str, suffix: str) -> pd.DataFrame:
                 dtype = item.get("type") or item.get("category", "Regulatory")
                 if title:
                     rows.append({
-                        "Tipo":         dtype,
-                        "Descripción":  title,
-                        "Fecha":        str(date)[:10] if date else "—",
+                        "Tipo": dtype,
+                        "Descripción": title,
+                        "Fecha": str(date)[:10] if date else "—",
                         "Ver documento": '<a href="' + link + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 Abrir</a>' if link else "—",
                     })
     except Exception:
         pass
     if not rows:
-        euronext_url = "https://live.euronext.com/en/product/equities/" + ticker_base + "-" + mic
         rows.append({
-            "Tipo":         "Portal Euronext",
-            "Descripción":  "Consulta directa para " + ticker_base + " en Euronext Live",
-            "Fecha":        "—",
-            "Ver documento": '<a href="' + euronext_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Abrir Euronext Live</a>',
+            "Tipo": "Portal Euronext",
+            "Descripción": "Consulta directa para " + ticker_base,
+            "Fecha": "—",
+            "Ver documento": '<a href="https://live.euronext.com/en/product/equities/' + ticker_base + '-' + mic + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Euronext Live</a>',
         })
     return pd.DataFrame(rows)
 
@@ -672,27 +663,22 @@ def get_euronext_filings(ticker_base: str, suffix: str) -> pd.DataFrame:
 def get_lse_filings(ticker_base: str) -> pd.DataFrame:
     rows = []
     try:
-        url  = "https://api.londonstockexchange.com/api/gw/lse/instruments/alldata/news/" + ticker_base
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        resp = requests.get("https://api.londonstockexchange.com/api/gw/lse/instruments/alldata/news/" + ticker_base, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
         if resp.status_code == 200:
             for item in resp.json().get("content", [])[:25]:
-                title = item.get("headline", "")
-                date  = item.get("announcementDate", "")[:10]
-                link  = "https://www.londonstockexchange.com" + item.get("url", "")
-                dtype = item.get("category", "RNS")
                 rows.append({
-                    "Tipo":         dtype,
-                    "Descripción":  title,
-                    "Fecha":        date,
-                    "Ver documento": '<a href="' + link + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 LSE</a>',
+                    "Tipo": item.get("category", "RNS"),
+                    "Descripción": item.get("headline", ""),
+                    "Fecha": item.get("announcementDate", "")[:10],
+                    "Ver documento": '<a href="https://www.londonstockexchange.com' + item.get("url","") + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 LSE</a>',
                 })
     except Exception:
         pass
     if not rows:
         rows.append({
-            "Tipo":         "Portal LSE",
-            "Descripción":  "Anuncios regulatorios (RNS) para " + ticker_base,
-            "Fecha":        "—",
+            "Tipo": "Portal LSE",
+            "Descripción": "Anuncios regulatorios (RNS) para " + ticker_base,
+            "Fecha": "—",
             "Ver documento": '<a href="https://www.londonstockexchange.com/live-markets/company-news-and-events/" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 LSE News</a>',
         })
     return pd.DataFrame(rows)
@@ -705,20 +691,19 @@ def get_oslo_filings(ticker_base: str) -> pd.DataFrame:
         if resp.status_code == 200:
             for item in resp.json().get("messages", []):
                 mid  = item.get("id", "")
-                link = "https://newsweb.oslobors.no/message/" + str(mid) if mid else ""
                 rows.append({
-                    "Tipo":         item.get("category", "Regulatory"),
-                    "Descripción":  item.get("title", ""),
-                    "Fecha":        str(item.get("publishedTime", ""))[:10],
-                    "Ver documento": '<a href="' + link + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 Oslo</a>' if link else "—",
+                    "Tipo": item.get("category", "Regulatory"),
+                    "Descripción": item.get("title", ""),
+                    "Fecha": str(item.get("publishedTime", ""))[:10],
+                    "Ver documento": '<a href="https://newsweb.oslobors.no/message/' + str(mid) + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 Oslo</a>' if mid else "—",
                 })
     except Exception:
         pass
     if not rows:
         rows.append({
-            "Tipo":         "Oslo Børs",
-            "Descripción":  "Comunicados regulatorios para " + ticker_base,
-            "Fecha":        "—",
+            "Tipo": "Oslo Børs",
+            "Descripción": "Comunicados para " + ticker_base,
+            "Fecha": "—",
             "Ver documento": '<a href="https://newsweb.oslobors.no/" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Newsweb</a>',
         })
     return pd.DataFrame(rows)
@@ -733,18 +718,18 @@ def get_nordic_filings(ticker_base: str, suffix: str) -> pd.DataFrame:
         if resp.status_code == 200:
             for item in resp.json().get("data", {}).get("rows", []):
                 rows.append({
-                    "Tipo":         item.get("type", "Press Release"),
-                    "Descripción":  item.get("headline", ""),
-                    "Fecha":        str(item.get("date", ""))[:10],
+                    "Tipo": item.get("type", "Press Release"),
+                    "Descripción": item.get("headline", ""),
+                    "Fecha": str(item.get("date", ""))[:10],
                     "Ver documento": '<a href="' + item.get("url","") + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">📄 Ver</a>' if item.get("url") else "—",
                 })
     except Exception:
         pass
     if not rows:
         rows.append({
-            "Tipo":         "Nasdaq Nordic",
-            "Descripción":  "Comunicados para " + ticker_base,
-            "Fecha":        "—",
+            "Tipo": "Nasdaq Nordic",
+            "Descripción": "Comunicados para " + ticker_base,
+            "Fecha": "—",
             "Ver documento": '<a href="https://www.nasdaqomxnordic.com/news/companynews" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Nasdaq Nordic</a>',
         })
     return pd.DataFrame(rows)
@@ -767,13 +752,12 @@ def get_european_filings(ticker: str) -> tuple:
                 return get_nordic_filings(ticker_base, suffix), "Nasdaq Nordic · " + source_name
             else:
                 fallback_url = REGULATORY_SEARCH_LINKS.get(suffix, "#").replace("{ticker}", ticker_base)
-                df_fb = pd.DataFrame([{
-                    "Tipo":         source_name,
-                    "Descripción":  "Portal regulatorio oficial para " + ticker_base + " (" + suffix + ")",
-                    "Fecha":        "—",
-                    "Ver documento": '<a href="' + fallback_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Abrir portal ' + source_name + '</a>',
-                }])
-                return df_fb, source_name
+                return pd.DataFrame([{
+                    "Tipo": source_name,
+                    "Descripción": "Portal oficial para " + ticker_base,
+                    "Fecha": "—",
+                    "Ver documento": '<a href="' + fallback_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-weight:600;text-decoration:none;">🔗 Abrir portal</a>',
+                }]), source_name
     return pd.DataFrame(), "Desconocida"
 
 # =========================
@@ -794,128 +778,83 @@ def compute_valuations(info, currency):
     total_debt = safe_float(info.get("totalDebt"), 0.0)
     cash       = safe_float(info.get("totalCash"), 0.0)
     net_income = safe_float(info.get("netIncomeToCommon"))
-
-    cal_map = {"Alta": "High", "Media": "Medium", "Baja": "Low"}
+    cal_map    = {"Alta": "High", "Media": "Medium", "Baja": "Low"}
 
     def dcf_model(fcf0, g_high, g_low, r, label, calidad, origen):
         if fcf0 is None or shares is None or shares <= 0 or r <= g_low:
             return
         pv  = sum(fcf0*(1+g_high)**t/(1+r)**t for t in range(1, 6))
         pv += sum(fcf0*(1+g_high)**5*(1+g_low)**(t-5)/(1+r)**t for t in range(6, 11))
-        terminal    = fcf0*(1+g_high)**5*(1+g_low)**5*(1+g_low)/(r-g_low)
-        pv_terminal = terminal/(1+r)**10
-        va          = (pv + pv_terminal + cash - total_debt) / shares
+        terminal = fcf0*(1+g_high)**5*(1+g_low)**5*(1+g_low)/(r-g_low)
+        va       = (pv + terminal/(1+r)**10 + cash - total_debt) / shares
         methods.append({
-            "Método":    label,
-            "Tipo":      "DCF",
-            "Calidad":   calidad if lang=="ES" else cal_map.get(calidad, calidad),
-            "Valor":     va,
-            "Qué se usó": origen + " · crec. " + str(int(g_high*100)) + "%→" + str(int(g_low*100)) + "% · desc. " + str(int(r*100)) + "%",
-            "Detalle":   "FCF base: " + fmt_large(fcf0) + " | g_alto=" + str(int(g_high*100)) + "% g_bajo=" + str(int(g_low*100)) + "% r=" + str(int(r*100)) + "%",
+            "Método":     label,
+            "Tipo":       "DCF",
+            "Calidad":    calidad if lang=="ES" else cal_map.get(calidad, calidad),
+            "Valor":      va,
+            "Qué se usó": origen + " g=" + str(int(g_high*100)) + "%→" + str(int(g_low*100)) + "% r=" + str(int(r*100)) + "%",
+            "Detalle":    origen + " " + fmt_large(fcf0) + " | g_alto=" + str(int(g_high*100)) + "% g_bajo=" + str(int(g_low*100)) + "% r=" + str(int(r*100)) + "%",
         })
 
     if fcf is not None:
         dcf_model(fcf, 0.15, 0.04, 0.11, "DCF Agresivo"    if lang=="ES" else "Aggressive DCF",   "Media", "FCF")
         dcf_model(fcf, 0.10, 0.03, 0.10, "DCF Base"        if lang=="ES" else "Base DCF",          "Alta",  "FCF")
         dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservador" if lang=="ES" else "Conservative DCF", "Alta",  "FCF")
-
     if net_income is not None and shares and shares > 0:
-        dcf_model(net_income, 0.08, 0.03, 0.10,
-                  "DCF (Bº neto)" if lang=="ES" else "DCF (Net income)", "Media",
-                  "Bº neto" if lang=="ES" else "Net income")
+        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto)" if lang=="ES" else "DCF (Net income)", "Media", "Bº neto")
 
     if ebitda and ebitda > 0 and shares and shares > 0:
         for mult, cal in [(8,"Alta"),(10,"Alta"),(12,"Media"),(15,"Media"),(20,"Baja")]:
-            methods.append({
-                "Método":    "EV/EBITDA " + str(mult) + "×",
-                "Tipo":      "Múltiplo" if lang=="ES" else "Multiple",
-                "Calidad":   cal if lang=="ES" else cal_map[cal],
-                "Valor":     (ebitda*mult + cash - total_debt) / shares,
-                "Qué se usó": "EBITDA × " + str(mult),
-                "Detalle":   "EBITDA " + fmt_large(ebitda) + " × " + str(mult),
-            })
+            methods.append({"Método": "EV/EBITDA " + str(mult) + "×", "Tipo": "Múltiplo" if lang=="ES" else "Multiple",
+                "Calidad": cal if lang=="ES" else cal_map[cal], "Valor": (ebitda*mult+cash-total_debt)/shares,
+                "Qué se usó": "EBITDA × " + str(mult), "Detalle": "EBITDA " + fmt_large(ebitda) + " × " + str(mult)})
 
     if ebit and ebit > 0 and shares and shares > 0:
         for mult, cal in [(10,"Alta"),(14,"Media"),(18,"Baja")]:
-            methods.append({
-                "Método":    "EV/EBIT " + str(mult) + "×",
-                "Tipo":      "Múltiplo" if lang=="ES" else "Multiple",
-                "Calidad":   cal if lang=="ES" else cal_map[cal],
-                "Valor":     (ebit*mult + cash - total_debt) / shares,
-                "Qué se usó": "EBIT × " + str(mult),
-                "Detalle":   "EBIT " + fmt_large(ebit) + " × " + str(mult),
-            })
+            methods.append({"Método": "EV/EBIT " + str(mult) + "×", "Tipo": "Múltiplo" if lang=="ES" else "Multiple",
+                "Calidad": cal if lang=="ES" else cal_map[cal], "Valor": (ebit*mult+cash-total_debt)/shares,
+                "Qué se usó": "EBIT × " + str(mult), "Detalle": "EBIT " + fmt_large(ebit) + " × " + str(mult)})
 
     eps_use    = eps if (eps and eps > 0) else fwd_eps
     eps_origen = ("BPA histórico" if lang=="ES" else "Historical EPS") if (eps and eps > 0) else ("BPA estimado" if lang=="ES" else "Forward EPS")
-
     if eps_use and eps_use > 0:
         for mult, cal in [(10,"Alta"),(15,"Alta"),(20,"Media"),(25,"Media"),(30,"Baja")]:
-            methods.append({
-                "Método":    "P/E " + str(mult) + "×",
-                "Tipo":      "Múltiplo" if lang=="ES" else "Multiple",
-                "Calidad":   cal if lang=="ES" else cal_map[cal],
-                "Valor":     eps_use * mult,
-                "Qué se usó": eps_origen + " × " + str(mult),
-                "Detalle":   eps_origen + " " + str(round(eps_use,2)) + " × PER " + str(mult),
-            })
+            methods.append({"Método": "P/E " + str(mult) + "×", "Tipo": "Múltiplo" if lang=="ES" else "Multiple",
+                "Calidad": cal if lang=="ES" else cal_map[cal], "Valor": eps_use*mult,
+                "Qué se usó": eps_origen + " × " + str(mult), "Detalle": eps_origen + " " + str(round(eps_use,2)) + " × " + str(mult)})
 
     if revenue and shares and shares > 0:
         for mult, cal in [(1,"Alta"),(2,"Alta"),(4,"Media"),(6,"Media"),(8,"Baja")]:
-            methods.append({
-                "Método":    ("P/Ventas " if lang=="ES" else "P/Sales ") + str(mult) + "×",
-                "Tipo":      "Múltiplo" if lang=="ES" else "Multiple",
-                "Calidad":   cal if lang=="ES" else cal_map[cal],
-                "Valor":     revenue * mult / shares,
-                "Qué se usó": "Ventas × " + str(mult) + " ÷ acciones",
-                "Detalle":   "Ventas " + fmt_large(revenue) + " × " + str(mult),
-            })
+            methods.append({"Método": ("P/Ventas " if lang=="ES" else "P/Sales ") + str(mult) + "×",
+                "Tipo": "Múltiplo" if lang=="ES" else "Multiple",
+                "Calidad": cal if lang=="ES" else cal_map[cal], "Valor": revenue*mult/shares,
+                "Qué se usó": "Ventas × " + str(mult), "Detalle": "Ventas " + fmt_large(revenue) + " × " + str(mult)})
 
     if bvps and bvps > 0:
         for mult, cal in [(1,"Alta"),(1.5,"Alta"),(2,"Media"),(3,"Media"),(4,"Baja")]:
-            methods.append({
-                "Método":    "P/Book " + str(mult) + "×",
-                "Tipo":      "Múltiplo" if lang=="ES" else "Multiple",
-                "Calidad":   cal if lang=="ES" else cal_map[cal],
-                "Valor":     bvps * mult,
-                "Qué se usó": "BVPS × " + str(mult),
-                "Detalle":   "Valor en libros/acción " + str(round(bvps,2)) + " × " + str(mult),
-            })
+            methods.append({"Método": "P/Book " + str(mult) + "×", "Tipo": "Múltiplo" if lang=="ES" else "Multiple",
+                "Calidad": cal if lang=="ES" else cal_map[cal], "Valor": bvps*mult,
+                "Qué se usó": "BVPS × " + str(mult), "Detalle": "BVPS " + str(round(bvps,2)) + " × " + str(mult)})
 
     if eps_use and eps_use > 0 and bvps and bvps > 0:
-        methods.append({
-            "Método":    "Graham Number",
-            "Tipo":      "Mixto" if lang=="ES" else "Hybrid",
-            "Calidad":   "Alta" if lang=="ES" else "High",
-            "Valor":     math.sqrt(22.5 * eps_use * bvps),
-            "Qué se usó": "√(22.5 × EPS × BVPS)",
-            "Detalle":   "√(22.5 × " + str(round(eps_use,2)) + " × " + str(round(bvps,2)) + ")",
-        })
-        methods.append({
-            "Método":    "Graham Ajustado (15×)" if lang=="ES" else "Adjusted Graham (15×)",
-            "Tipo":      "Mixto" if lang=="ES" else "Hybrid",
-            "Calidad":   "Media" if lang=="ES" else "Medium",
-            "Valor":     math.sqrt(15 * eps_use * bvps),
-            "Qué se usó": "√(15 × EPS × BVPS)",
-            "Detalle":   "√(15 × " + str(round(eps_use,2)) + " × " + str(round(bvps,2)) + ")",
-        })
+        methods.append({"Método": "Graham Number", "Tipo": "Mixto" if lang=="ES" else "Hybrid",
+            "Calidad": "Alta" if lang=="ES" else "High", "Valor": math.sqrt(22.5*eps_use*bvps),
+            "Qué se usó": "√(22.5×EPS×BVPS)", "Detalle": "√(22.5×" + str(round(eps_use,2)) + "×" + str(round(bvps,2)) + ")"})
+        methods.append({"Método": "Graham Ajustado (15×)" if lang=="ES" else "Adjusted Graham (15×)",
+            "Tipo": "Mixto" if lang=="ES" else "Hybrid", "Calidad": "Media" if lang=="ES" else "Medium",
+            "Valor": math.sqrt(15*eps_use*bvps), "Qué se usó": "√(15×EPS×BVPS)",
+            "Detalle": "√(15×" + str(round(eps_use,2)) + "×" + str(round(bvps,2)) + ")"})
 
     if div and div > 0:
         for g_div, r_div, lbl in [(0.02,0.08,"DDM (g2% r8%)"),(0.03,0.09,"DDM (g3% r9%)"),(0.05,0.10,"DDM (g5% r10%)")]:
             if r_div > g_div:
-                methods.append({
-                    "Método":    lbl,
-                    "Tipo":      "DDM",
-                    "Calidad":   "Media" if lang=="ES" else "Medium",
-                    "Valor":     div*(1+g_div)/(r_div-g_div),
-                    "Qué se usó": "Div×(1+g)÷(r−g)",
-                    "Detalle":   "Div " + str(round(div,2)) + " g=" + str(int(g_div*100)) + "% r=" + str(int(r_div*100)) + "%",
-                })
+                methods.append({"Método": lbl, "Tipo": "DDM", "Calidad": "Media" if lang=="ES" else "Medium",
+                    "Valor": div*(1+g_div)/(r_div-g_div), "Qué se usó": "Div×(1+g)÷(r−g)",
+                    "Detalle": "Div=" + str(round(div,2)) + " g=" + str(int(g_div*100)) + "% r=" + str(int(r_div*100)) + "%"})
 
     for m in methods:
         m["Precio"]   = price
         m["Upside %"] = round((m["Valor"]-price)/price*100, 1) if price and price > 0 else None
-
     return methods, price
 
 # =========================
@@ -1179,7 +1118,6 @@ with tab_val:
             return "★"*base + "☆"*(5-base)
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
-
         df_tabla = pd.DataFrame({
             "Método" if lang=="ES" else "Method": df_val["Método"],
             T["type"]:            df_val["Tipo"],
@@ -1205,15 +1143,15 @@ with tab_val:
         st.markdown("---")
         st.markdown("### " + T["detail_methods"])
         for _, row in df_val.sort_values("Upside %", ascending=False).reset_index(drop=True).iterrows():
-            with st.expander(row["Método"] + " · " + T["intrinsic_value"] + ": " + f"{row['Valor']:.2f}" + " " + currency, expanded=False):
+            with st.expander(row["Método"] + " · " + T["intrinsic_value"] + ": " + f"{row['Valor']:.2f} {currency}", expanded=False):
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.markdown("**" + T["type"]    + ":** " + row["Tipo"])
-                    st.markdown("**" + T["quality"]  + ":** " + row["Calidad"])
-                    st.markdown("**" + T["current_price"] + ":** " + (f"{row['Precio']:.2f} {currency}" if pd.notna(row["Precio"]) else "N/A"))
+                    st.markdown("**" + T["type"]          + ":** " + row["Tipo"])
+                    st.markdown("**" + T["quality"]        + ":** " + row["Calidad"])
+                    st.markdown("**" + T["current_price"]  + ":** " + (f"{row['Precio']:.2f} {currency}" if pd.notna(row["Precio"]) else "N/A"))
                 with c2:
-                    st.markdown("**" + T["intrinsic_value"] + ":** " + f"{row['Valor']:.2f} {currency}")
-                    st.markdown("**" + T["upside"] + ":** " + (f"{row['Upside %']:+.1f}%" if pd.notna(row["Upside %"]) else "N/A"))
+                    st.markdown("**" + T["intrinsic_value"]+ ":** " + f"{row['Valor']:.2f} {currency}")
+                    st.markdown("**" + T["upside"]         + ":** " + (f"{row['Upside %']:+.1f}%" if pd.notna(row["Upside %"]) else "N/A"))
                     st.markdown("**" + T["interpretation"] + ":** " + row["Interpretación"])
                 st.markdown("**" + T["used"]        + ":** " + row["Qué se usó"])
                 st.markdown("**" + T["explanation"] + ":** " + row["Detalle"])
@@ -1340,7 +1278,6 @@ with tab_price:
 with tab_port:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["portfolio_title"])
-
     if returns is not None and not returns.empty:
         st.markdown(T["portfolio_cfg"])
         c_opt1, c_opt2 = st.columns(2)
@@ -1433,7 +1370,7 @@ with tab_filings:
                 source_label = "SEC EDGAR (EE.UU.)"
                 st.success("✅ **" + str(len(df_sec)) + "** informes en la SEC para **" + ticker_base + "** (CIK: " + str(int(cik)) + ")")
             else:
-                st.warning("⚠️ CIK encontrado (" + str(int(cik)) + ") pero sin filings. Puede ser un problema temporal.")
+                st.warning("⚠️ CIK encontrado pero sin filings. Puede ser un problema temporal.")
         else:
             st.info("ℹ️ No se encontró CIK para **" + ticker_base + "** en la SEC.")
 
@@ -1450,7 +1387,7 @@ with tab_filings:
             else:
                 st.info("ℹ️ Enlace directo al portal **" + source_label + "** para **" + ticker_base + "**")
     else:
-        st.info("ℹ️ Sin fuente regulatoria configurada para **" + active_ticker + "**. Verifica el sufijo (ej: .MC, .L, .PA, .AS, .MI...).")
+        st.info("ℹ️ Sin fuente regulatoria configurada para **" + active_ticker + "**.")
 
     if df_all:
         df_filings = pd.concat(df_all, ignore_index=True)
@@ -1459,50 +1396,11 @@ with tab_filings:
                 df_filings["_s"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
                 df_filings.sort_values("_s", ascending=False, inplace=True)
                 df_filings.drop(columns=["_s"], inplace=True)
-                            except Exception:
+            except Exception:
                 pass
 
         tipo_col = "Tipo" if "Tipo" in df_filings.columns else "Formulario"
         if tipo_col in df_filings.columns:
             form_options   = sorted(df_filings[tipo_col].unique().tolist())
             selected_forms = st.multiselect(
-                "Filtrar por tipo:" if lang=="ES" else "Filter by type:",
-                options=form_options, default=form_options, key="reg_form_filter"
-            )
-            df_show = df_filings[df_filings[tipo_col].isin(selected_forms)].copy()
-        else:
-            df_show = df_filings.copy()
-
-        if df_show.empty:
-            st.info("No hay informes para los filtros seleccionados." if lang=="ES" else "No filings match the selected filters.")
-        else:
-            html_cols = [c for c in ["Ver informe","EDGAR","Ver documento"] if c in df_show.columns]
-            cols_show = [c for c in df_show.columns if c in ["Formulario","Tipo","Descripción","Fecha","Documento","Ver informe","EDGAR","Ver documento"]]
-            render_champagne_table(df_show[cols_show], html_cols=html_cols)
-            st.caption(
-                ("Mostrando " if lang=="ES" else "Showing ") + str(len(df_show)) +
-                (" documentos · Fuente: " if lang=="ES" else " documents · Source: ") + source_label
-            )
-
-    st.markdown("---")
-    suffix_det = next((s for s in REGULATORY_SOURCES if ticker_upper.endswith(s)), None)
-    if is_us_ticker:
-        edgar_url = (
-            "https://www.sec.gov/cgi-bin/browse-edgar?company=" + ticker_base +
-            "&CIK=&type=10-K&dateb=&owner=include&count=40&search_text=&action=getcompany"
-        )
-        st.markdown(
-            '<a href="' + edgar_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-size:0.88rem;text-decoration:none;">'
-            '🔗 ' + ("Buscar en EDGAR" if lang=="ES" else "Search on EDGAR") + '</a>',
-            unsafe_allow_html=True
-        )
-    elif suffix_det and suffix_det in REGULATORY_SEARCH_LINKS:
-        fallback_url = REGULATORY_SEARCH_LINKS[suffix_det].replace("{ticker}", ticker_base)
-        src_name     = REGULATORY_SOURCES[suffix_det]
-        st.markdown(
-            '<a href="' + fallback_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-size:0.88rem;text-decoration:none;">'
-            '🔗 ' + ("Buscar en el portal de " if lang=="ES" else "Search on ") + src_name + '</a>',
-            unsafe_allow_html=True
-        )
-
-    st.markdown('</div>', unsafe_allow_html=True)
+                "Filtrar por tipo:" if lang=="ES" else "Filter by
