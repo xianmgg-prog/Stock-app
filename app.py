@@ -1459,3 +1459,50 @@ with tab_filings:
                 df_filings["_s"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
                 df_filings.sort_values("_s", ascending=False, inplace=True)
                 df_filings.drop(columns=["_s"], inplace=True)
+                            except Exception:
+                pass
+
+        tipo_col = "Tipo" if "Tipo" in df_filings.columns else "Formulario"
+        if tipo_col in df_filings.columns:
+            form_options   = sorted(df_filings[tipo_col].unique().tolist())
+            selected_forms = st.multiselect(
+                "Filtrar por tipo:" if lang=="ES" else "Filter by type:",
+                options=form_options, default=form_options, key="reg_form_filter"
+            )
+            df_show = df_filings[df_filings[tipo_col].isin(selected_forms)].copy()
+        else:
+            df_show = df_filings.copy()
+
+        if df_show.empty:
+            st.info("No hay informes para los filtros seleccionados." if lang=="ES" else "No filings match the selected filters.")
+        else:
+            html_cols = [c for c in ["Ver informe","EDGAR","Ver documento"] if c in df_show.columns]
+            cols_show = [c for c in df_show.columns if c in ["Formulario","Tipo","Descripción","Fecha","Documento","Ver informe","EDGAR","Ver documento"]]
+            render_champagne_table(df_show[cols_show], html_cols=html_cols)
+            st.caption(
+                ("Mostrando " if lang=="ES" else "Showing ") + str(len(df_show)) +
+                (" documentos · Fuente: " if lang=="ES" else " documents · Source: ") + source_label
+            )
+
+    st.markdown("---")
+    suffix_det = next((s for s in REGULATORY_SOURCES if ticker_upper.endswith(s)), None)
+    if is_us_ticker:
+        edgar_url = (
+            "https://www.sec.gov/cgi-bin/browse-edgar?company=" + ticker_base +
+            "&CIK=&type=10-K&dateb=&owner=include&count=40&search_text=&action=getcompany"
+        )
+        st.markdown(
+            '<a href="' + edgar_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-size:0.88rem;text-decoration:none;">'
+            '🔗 ' + ("Buscar en EDGAR" if lang=="ES" else "Search on EDGAR") + '</a>',
+            unsafe_allow_html=True
+        )
+    elif suffix_det and suffix_det in REGULATORY_SEARCH_LINKS:
+        fallback_url = REGULATORY_SEARCH_LINKS[suffix_det].replace("{ticker}", ticker_base)
+        src_name     = REGULATORY_SOURCES[suffix_det]
+        st.markdown(
+            '<a href="' + fallback_url + '" target="_blank" style="color:' + ACCENT_GOLD + ';font-size:0.88rem;text-decoration:none;">'
+            '🔗 ' + ("Buscar en el portal de " if lang=="ES" else "Search on ") + src_name + '</a>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
