@@ -171,7 +171,6 @@ st.markdown(
         0%   {{ opacity: 0; transform: translateY(10px); }}
         100% {{ opacity: 1; transform: translateY(0); }}
     }}
-    /* ── METRIC CARDS ── */
     div[data-testid="stMetric"] {{
         background: linear-gradient(180deg, {CARD_BG} 0%, {CARD_BG_2} 100%);
         border: 1px solid {BORDER};
@@ -197,7 +196,6 @@ st.markdown(
         font-size: 0.75rem !important;
     }}
     div[data-testid="stMetricDelta"] svg {{ display: none !important; }}
-    /* ── COMPANY HEADER ── */
     .company-header {{
         background: linear-gradient(180deg, rgba(255,253,249,0.92) 0%, rgba(249,244,236,0.92) 100%);
         border: 1px solid {BORDER}; border-radius: 18px;
@@ -207,7 +205,6 @@ st.markdown(
     .company-name  {{ font-size: 1.7rem; font-weight: 800; color: {TEXT_PRIMARY}; }}
     .company-meta  {{ color: {TEXT_SECONDARY}; font-size: 0.95rem; margin-top: 0.15rem; }}
     .company-price {{ font-size: 2rem; font-weight: 800; color: {ACCENT_GOLD}; margin-top: 0.55rem; }}
-    /* ── INPUTS ── */
     .stTextInput input, .stNumberInput input {{
         background: rgba(255,253,249,0.96) !important; color: {TEXT_PRIMARY} !important;
         border: 1px solid {BORDER} !important; border-radius: 14px !important;
@@ -216,14 +213,12 @@ st.markdown(
         background: rgba(255,253,249,0.96) !important; color: {TEXT_PRIMARY} !important;
         border: 1px solid {BORDER} !important; border-radius: 14px !important;
     }}
-    /* ── BUTTON ── */
     .stButton > button {{
         background: linear-gradient(180deg, {ACCENT_GOLD_SOFT} 0%, {ACCENT_GOLD} 100%);
         color: white !important; border: none !important; border-radius: 14px !important;
         font-weight: 700 !important; padding: 0.72rem 1rem !important;
         box-shadow: 0 8px 22px rgba(182,138,82,0.22);
     }}
-    /* ── TABS ── */
     .stTabs [data-baseweb="tab-list"] {{ gap: 0.35rem; }}
     .stTabs [data-baseweb="tab"] {{
         background: rgba(255,251,245,0.95); border: 1px solid {BORDER};
@@ -238,7 +233,6 @@ st.markdown(
         border: 1px solid {BORDER} !important; border-radius: 16px !important;
         background: rgba(255,253,249,0.7) !important;
     }}
-    /* ── TABLE ── */
     .champ-table-wrap {{
         background: {CARD_BG}; border: 1px solid {TABLE_BORDER};
         border-radius: 18px; overflow-x: auto;
@@ -309,7 +303,6 @@ def fmt_large(x):
     elif v >= 1e6: return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
 
-# ── Metric card usando st.metric nativo ──
 def metric_card(label, value, sub=None):
     st.metric(label=label, value=value, delta=sub, delta_color="off")
 
@@ -386,31 +379,49 @@ def get_benchmark_list(info, main_ticker):
     peers = DEFAULT_BENCHMARKS.get(info.get("sector"), [])
     return [p for p in peers if p.upper() != main_ticker.upper()][:4]
 
+# ---------- NUEVA FORMAT_FINANCIAL_DF ROBUSTA ----------
 def format_financial_df(df):
-    # Versión robusta para evitar errores y artefactos HTML
-    if df is None or getattr(df, "empty", True):
+    if df is None:
+        return None
+    if not isinstance(df, pd.DataFrame):
+        return None
+    if df.empty:
         return None
 
     out = df.copy()
-    out = out.iloc[:, :6]
 
-    cols = []
+    if out.shape[1] > 6:
+        out = out.iloc[:, :6]
+
+    new_cols = []
     for c in out.columns:
         if hasattr(c, "date"):
-            cols.append(str(c.date()))
+            new_cols.append(str(c.date()))
         else:
             s = str(c)
-            cols.append(s[:10])
-    out.columns = cols
+            new_cols.append(s[:10])
+    out.columns = new_cols
 
-    out = out.applymap(
-        lambda x: fmt_large(x) if pd.notna(x) and isinstance(x, (int, float, np.number)) else x
-    )
+    def _fmt_cell(x):
+        if pd.isna(x):
+            return "N/A"
+        if isinstance(x, (int, float, np.number)):
+            return fmt_large(x)
+        if isinstance(x, str):
+            try:
+                v = float(x)
+                return fmt_large(v)
+            except Exception:
+                return x
+        return str(x)
 
-    out.reset_index(inplace=True)
+    out = out.applymap(_fmt_cell)
+
+    out = out.reset_index()
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
 
     return out
+# -------------------------------------------------------
 
 # =========================
 # SEC HELPERS
@@ -1163,7 +1174,10 @@ with tab_fin:
         with inner_tab:
             st.markdown('<div class="fade-container">', unsafe_allow_html=True)
 
-            df_fmt = format_financial_df(df_f)
+            try:
+                df_fmt = format_financial_df(df_f)
+            except Exception:
+                df_fmt = None
 
             if df_fmt is not None:
                 render_champagne_table(df_fmt)
