@@ -379,8 +379,11 @@ def get_benchmark_list(info, main_ticker):
     peers = DEFAULT_BENCHMARKS.get(info.get("sector"), [])
     return [p for p in peers if p.upper() != main_ticker.upper()][:4]
 
-# ---------- NUEVA FORMAT_FINANCIAL_DF ROBUSTA ----------
+# =========================
+# FORMAT_FINANCIAL_DF (ÚNICA)
+# =========================
 def format_financial_df(df):
+    # Protección: si no es DataFrame o está vacío, devolvemos None
     if df is None:
         return None
     if not isinstance(df, pd.DataFrame):
@@ -390,9 +393,11 @@ def format_financial_df(df):
 
     out = df.copy()
 
+    # Nos quedamos con las primeras 6 columnas
     if out.shape[1] > 6:
         out = out.iloc[:, :6]
 
+    # Normalizamos nombres de columnas
     new_cols = []
     for c in out.columns:
         if hasattr(c, "date"):
@@ -402,6 +407,7 @@ def format_financial_df(df):
             new_cols.append(s[:10])
     out.columns = new_cols
 
+    # Función de formateo de celdas
     def _fmt_cell(x):
         if pd.isna(x):
             return "N/A"
@@ -415,13 +421,16 @@ def format_financial_df(df):
                 return x
         return str(x)
 
-    out = out.applymap(_fmt_cell)
+    # Intentamos usar applymap de DataFrame; si falla, devolvemos None
+    try:
+        out = out.applymap(_fmt_cell)
+    except AttributeError:
+        return None
 
     out = out.reset_index()
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
 
     return out
-# -------------------------------------------------------
 
 # =========================
 # SEC HELPERS
@@ -1246,17 +1255,4 @@ with tab_filings:
             hc   = [c for c in ["Ver informe","EDGAR","Ver documento"] if c in df_show.columns]
             cols = [c for c in df_show.columns if c in ["Formulario","Tipo","Descripción","Fecha","Documento","Ver informe","EDGAR","Ver documento"]]
             render_champagne_table(df_show[cols], html_cols=hc)
-            st.caption(("Mostrando " if lang=="ES" else "Showing ") + str(len(df_show)) + " docs · " + source_label)
-
-    st.markdown("---")
-    suffix_det = next((s for s in REGULATORY_SOURCES if tu.endswith(s)), None)
-    if is_us:
-        st.markdown(_link("🔗 " + ("Buscar en EDGAR" if lang=="ES" else "Search EDGAR"),
-            "https://www.sec.gov/cgi-bin/browse-edgar?company=" + tb + "&CIK=&type=10-K&dateb=&owner=include&count=40&search_text=&action=getcompany"),
-            unsafe_allow_html=True)
-    elif suffix_det and suffix_det in REGULATORY_SEARCH_LINKS:
-        fb = REGULATORY_SEARCH_LINKS[suffix_det].replace("{ticker}", tb)
-        st.markdown(_link("🔗 " + ("Buscar en " if lang=="ES" else "Search ") + REGULATORY_SOURCES[suffix_det], fb),
-            unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+            st.caption(("Mostrando " if lang=="ES" else "Showing ") + str(len(df_show)) + " docs · " + source_label
