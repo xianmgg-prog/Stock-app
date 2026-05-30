@@ -82,6 +82,7 @@ TEXTS = {
         "price": "Precio",
         "portfolio": "Optimización de Cartera",
         "financials": "Estados financieros",
+        "informes": "Informes SEC",
         "description": "Descripción",
         "corp_data": "Datos corporativos",
         "country": "País",
@@ -157,6 +158,7 @@ TEXTS = {
         "price": "Price",
         "portfolio": "Portfolio Optimization",
         "financials": "Financial Statements",
+        "informes": "SEC Filings",
         "description": "Description",
         "corp_data": "Corporate data",
         "country": "Country",
@@ -214,7 +216,7 @@ TEXTS = {
 }
 
 # =========================
-# CSS (incluye transiciones)
+# CSS
 # =========================
 st.markdown(
     f"""
@@ -526,8 +528,9 @@ def render_company_header(company_name, ticker, sector, industry, currency, pric
         unsafe_allow_html=True,
     )
 
-def render_champagne_table(df: pd.DataFrame, pills_cols=None):
+def render_champagne_table(df: pd.DataFrame, pills_cols=None, html_cols=None):
     pills_cols = pills_cols or []
+    html_cols = html_cols or []
 
     def pill_class(val):
         v = str(val).lower()
@@ -547,7 +550,9 @@ def render_champagne_table(df: pd.DataFrame, pills_cols=None):
         for col in df.columns:
             val = row[col]
             display = "N/A" if pd.isna(val) else str(val)
-            if col in pills_cols:
+            if col in html_cols:
+                html += f"<td>{display}</td>"
+            elif col in pills_cols:
                 html += f'<td><span class="{pill_class(display)}">{display}</span></td>'
             else:
                 html += f"<td>{display}</td>"
@@ -595,136 +600,163 @@ def get_benchmark_list(info, main_ticker):
 def format_financial_df(df):
     if df is None or df.empty:
         return None
-
     out = df.copy()
-
     try:
         out = out.iloc[:, :6]
     except Exception:
         pass
-
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
-
-    # pandas 3.x: DataFrame.map aplica función elemento a elemento [web:181]
     out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
-
     out.reset_index(inplace=True)
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
     return out
 
 # =========================
-# SEC / CNMV HELPERS
+# SEC HELPERS — CORREGIDOS
 # =========================
 
 SEC_BASE = "https://data.sec.gov"
+# ⚠️ PON TU NOMBRE Y EMAIL REAL — la SEC lo exige para no bloquear peticiones
 SEC_HEADERS = {
-    # Cambia esto por tus datos reales de contacto (la SEC lo exige) [web:125][web:141].
-    "User-Agent": "TuNombreEquityTerminal/1.0 contacto@tuemail.com",
+    "User-Agent": "EquityTerminal/1.0 tucorreo@tudominio.com",
     "Accept-Encoding": "gzip, deflate",
-    "Host": "data.sec.gov",
 }
 
-def get_cik_from_ticker_us(ticker: str) -> str | None:
-    """
-    Devuelve el CIK (10 dígitos con ceros) para un ticker USA usando el JSON oficial de la SEC [web:223].
-    """
+# Sufijos de bolsas NO americanas
+SUFFIXES_NO_US = {
+    ".MC", ".L", ".PA", ".AS", ".MI", ".DE", ".HK",
+    ".T", ".AX", ".TO", ".BR", ".LS", ".VI", ".SW",
+    ".OL", ".ST", ".HE", ".CO", ".BO", ".NS", ".SA"
+}
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cik_from_ticker_us(ticker: str):
     try:
         url = "https://www.sec.gov/files/company_tickers.json"
         resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        ticker_up = ticker.upper().replace(".", "")
+        ticker_norm = ticker.upper().replace(".US", "").replace("-", "").replace(".", "")
         for entry in data.values():
-            if entry["ticker"].upper() == ticker_up:
-                cik = str(entry["cik_str"]).zfill(10)
-                return cik
+            entry_norm = entry["ticker"].upper().replace("-", "").replace(".", "")
+            if entry_norm == ticker_norm:
+                return str(entry["cik_str"]).zfill(10)
         return None
     except Exception:
         return None
 
-def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFrame:
-    """
-    Usa la API submissions de EDGAR para obtener historial de filings de un CIK [web:125][web:141].
-    """
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_sec_filings_metadata(cik: str, form_types=None, limit=30):
     if form_types is None:
-        form_types = ["10-K", "10-Q", "20-F", "40-F"]
+        form_types = ["10-K", "10-Q", "20-F", "40-F", "8-K", "6-K"]
     try:
         url = f"{SEC_BASE}/submissions/CIK{cik}.json"
         resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
         resp.raise_for_status()
         j = resp.json()
-        filings = j.get("filings", {}).get("recent", {})
-        forms = filings.get("form", [])
-        dates = filings.get("filingDate", [])
-        acc_no = filings.get("accessionNumber", [])
+
+        filings      = j.get("filings", {}).get("recent", {})
+        forms        = filings.get("form", [])
+        dates        = filings.get("filingDate", [])
+        acc_nos      = filings.get("accessionNumber", [])
         primary_docs = filings.get("primaryDocument", [])
+        descriptions = filings.get("primaryDocDescription", [])
+        extra_files  = j.get("filings", {}).get("files", [])
+        cik_int      = str(int(cik))
 
         rows = []
-        for f, d, a, doc in zip(forms, dates, acc_no, primary_docs):
+        for f, d, a, doc, desc in zip(forms, dates, acc_nos, primary_docs, descriptions):
             if f not in form_types:
                 continue
             accession_clean = a.replace("-", "")
-            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_clean}/{doc}"
+            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_clean}/{doc}"
             rows.append({
-                "Regulador": "SEC",
-                "CIK": cik,
                 "Formulario": f,
+                "Descripción": desc if desc else f,
                 "Fecha": d,
                 "Documento": doc,
-                "URL": filing_url,
+                "Ver informe": f'<a href="{filing_url}" target="_blank" style="color:{ACCENT_GOLD};font-weight:600;text-decoration:none;">📄 Abrir</a>',
+                "EDGAR": f'<a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={f}&dateb=&owner=include&count=40" target="_blank" style="color:{TEXT_SECONDARY};font-size:0.85rem;text-decoration:none;">🔗 EDGAR</a>',
             })
             if len(rows) >= limit:
                 break
+
+        # Paginación adicional de EDGAR si hay pocos resultados
+        if len(rows) < 5 and extra_files:
+            for ef in extra_files[:3]:
+                ef_name = ef.get("name", "")
+                if not ef_name:
+                    continue
+                try:
+                    ef_resp = requests.get(f"{SEC_BASE}/submissions/{ef_name}", headers=SEC_HEADERS, timeout=20)
+                    ef_resp.raise_for_status()
+                    ef_j = ef_resp.json()
+                    for f, d, a, doc, desc in zip(
+                        ef_j.get("form", []),
+                        ef_j.get("filingDate", []),
+                        ef_j.get("accessionNumber", []),
+                        ef_j.get("primaryDocument", []),
+                        ef_j.get("primaryDocDescription", []),
+                    ):
+                        if f not in form_types:
+                            continue
+                        accession_clean = a.replace("-", "")
+                        filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_clean}/{doc}"
+                        rows.append({
+                            "Formulario": f,
+                            "Descripción": desc if desc else f,
+                            "Fecha": d,
+                            "Documento": doc,
+                            "Ver informe": f'<a href="{filing_url}" target="_blank" style="color:{ACCENT_GOLD};font-weight:600;text-decoration:none;">📄 Abrir</a>',
+                            "EDGAR": f'<a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={f}&dateb=&owner=include&count=40" target="_blank" style="color:{TEXT_SECONDARY};font-size:0.85rem;text-decoration:none;">🔗 EDGAR</a>',
+                        })
+                        if len(rows) >= limit:
+                            break
+                except Exception:
+                    continue
+                if len(rows) >= limit:
+                    break
 
         return pd.DataFrame(rows)
     except Exception:
         return pd.DataFrame()
 
-# CNMV: stub para que tú lo completes con el endpoint que prefieras [web:219][web:134][web:220].
 def get_cnmv_filings_for_spanish_issuer(ticker_base: str) -> pd.DataFrame:
-    """
-    Dado un ticker español sin sufijo (ej: ITX, SAN, TEF) devuelve informes de CNMV.
-    AHORA MISMO ES SOLO UN ESQUELETO: debes rellenar la parte de la API concreta de CNMV.
-    """
-    # Aquí dentro es donde llamarías a la API de informes financieros/anuales de la CNMV
-    # y construirías un DataFrame con columnas Regualdor, Formulario, Fecha, Documento, URL.
-    # Ejemplo de estructura vacía:
+    # Stub CNMV — implementa aquí la llamada a su API cuando quieras activarla
     return pd.DataFrame()
 
 # =========================
-# VALORACIÓN (igual que antes)
+# VALORACIÓN
 # =========================
 def compute_valuations(info, currency):
     methods = []
 
-    price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
-    shares = safe_float(info.get("sharesOutstanding"))
-    fcf = safe_float(info.get("freeCashflow"))
-    revenue = safe_float(info.get("totalRevenue"))
-    ebitda = safe_float(info.get("ebitda"))
-    ebit = safe_float(info.get("ebit"))
-    bvps = safe_float(info.get("bookValue"))
-    eps = safe_float(info.get("trailingEps"))
-    fwd_eps = safe_float(info.get("forwardEps"))
-    div = safe_float(info.get("dividendRate"))
+    price      = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
+    shares     = safe_float(info.get("sharesOutstanding"))
+    fcf        = safe_float(info.get("freeCashflow"))
+    revenue    = safe_float(info.get("totalRevenue"))
+    ebitda     = safe_float(info.get("ebitda"))
+    ebit       = safe_float(info.get("ebit"))
+    bvps       = safe_float(info.get("bookValue"))
+    eps        = safe_float(info.get("trailingEps"))
+    fwd_eps    = safe_float(info.get("forwardEps"))
+    div        = safe_float(info.get("dividendRate"))
     total_debt = safe_float(info.get("totalDebt"), 0.0)
-    cash = safe_float(info.get("totalCash"), 0.0)
+    cash       = safe_float(info.get("totalCash"), 0.0)
     net_income = safe_float(info.get("netIncomeToCommon"))
 
     def dcf_model(fcf0, g_high, g_low, r, label, calidad, origen):
         if fcf0 is None or shares is None or shares <= 0 or r <= g_low:
             return
-
         pv = 0.0
         for t in range(1, 6):
             pv += fcf0 * (1 + g_high) ** t / (1 + r) ** t
         for t in range(6, 11):
             pv += fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** (t - 5) / (1 + r) ** t
-
-        terminal = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
+        terminal   = fcf0 * (1 + g_high) ** 5 * (1 + g_low) ** 5 * (1 + g_low) / (r - g_low)
         pv_terminal = terminal / (1 + r) ** 10
-        equity = pv + pv_terminal + cash - total_debt
+        equity      = pv + pv_terminal + cash - total_debt
         valor_accion = equity / shares
 
         if lang == "ES":
@@ -801,7 +833,7 @@ def compute_valuations(info, currency):
                 "Detalle": detalle,
             })
 
-    eps_use = eps if (eps and eps > 0) else fwd_eps
+    eps_use    = eps if (eps and eps > 0) else fwd_eps
     eps_origen = ("BPA histórico" if lang == "ES" else "Historical EPS") if (eps and eps > 0) else ("BPA estimado" if lang == "ES" else "Forward EPS")
 
     if eps_use and eps_use > 0:
@@ -865,34 +897,32 @@ def compute_valuations(info, currency):
         graham = math.sqrt(22.5 * eps_use * bvps)
         detalle = (
             f"Se combina el beneficio por acción ({eps_use:.2f}) con el valor en libros por acción ({bvps:.2f}). "
-            f"Se multiplican ambos por 22.5 y luego se aplica una raíz cuadrada: √(22.5 × BPA × valor en libros por acción)."
+            f"Se multiplican ambos por 22.5 y luego se aplica una raíz cuadrada: √(22.5 × BPA × VL/acción)."
             if lang == "ES" else
-            f"Earnings per share ({eps_use:.2f}) and book value per share ({bvps:.2f}) are combined. "
-            f"Both are multiplied by 22.5 and then a square root is applied: √(22.5 × EPS × book value per share)."
+            f"EPS ({eps_use:.2f}) and book value per share ({bvps:.2f}) are combined. "
+            f"Both multiplied by 22.5, then square root applied: √(22.5 × EPS × BVPS)."
         )
         methods.append({
             "Método": "Graham Number",
             "Tipo": "Mixto" if lang == "ES" else "Hybrid",
             "Calidad": "Alta" if lang == "ES" else "High",
             "Valor": graham,
-            "Qué se usó": "√(22.5 × BPA × valor en libros por acción)" if lang == "ES" else "√(22.5 × EPS × book value per share)",
+            "Qué se usó": "√(22.5 × BPA × VL/acción)" if lang == "ES" else "√(22.5 × EPS × BVPS)",
             "Detalle": detalle,
         })
 
         graham_adj = math.sqrt(15 * eps_use * bvps)
         detalle_adj = (
-            f"Es una versión más prudente del método Graham. Se usa √(15 × BPA × valor en libros por acción), "
-            f"reduciendo el factor desde 22.5 hasta 15."
+            f"Versión más prudente del método Graham. Se usa √(15 × BPA × VL/acción), reduciendo el factor de 22.5 a 15."
             if lang == "ES" else
-            f"This is a more conservative Graham version. It uses √(15 × EPS × book value per share), "
-            f"reducing the factor from 22.5 to 15."
+            f"More conservative Graham version. Uses √(15 × EPS × BVPS), reducing the factor from 22.5 to 15."
         )
         methods.append({
             "Método": "Graham Ajustado (15×)" if lang == "ES" else "Adjusted Graham (15×)",
             "Tipo": "Mixto" if lang == "ES" else "Hybrid",
             "Calidad": "Media" if lang == "ES" else "Medium",
             "Valor": graham_adj,
-            "Qué se usó": "√(15 × BPA × valor en libros por acción)" if lang == "ES" else "√(15 × EPS × book value per share)",
+            "Qué se usó": "√(15 × BPA × VL/acción)" if lang == "ES" else "√(15 × EPS × BVPS)",
             "Detalle": detalle_adj,
         })
 
@@ -905,23 +935,18 @@ def compute_valuations(info, currency):
             if r_div > g_div:
                 val_ddm = div * (1 + g_div) / (r_div - g_div)
                 detalle = (
-                    f"Se toma el dividendo anual por acción ({div:.2f}), se aumenta con un crecimiento esperado del "
-                    f"{g_div*100:.0f}%, y se divide entre la diferencia entre la rentabilidad exigida ({r_div*100:.0f}%) "
-                    f"y ese crecimiento."
+                    f"Se toma el dividendo anual por acción ({div:.2f}), se aumenta con un crecimiento del "
+                    f"{g_div*100:.0f}%, y se divide entre la diferencia entre la rentabilidad exigida ({r_div*100:.0f}%) y ese crecimiento."
                     if lang == "ES" else
-                    f"Annual dividend per share ({div:.2f}) is increased by expected growth of {g_div*100:.0f}% "
-                    f"and divided by the difference between required return ({r_div*100:.0f}%) and growth."
+                    f"Annual dividend ({div:.2f}) increased by expected growth of {g_div*100:.0f}% "
+                    f"and divided by required return ({r_div*100:.0f}%) minus growth."
                 )
                 methods.append({
                     "Método": label_div,
                     "Tipo": "DDM",
                     "Calidad": "Media" if lang == "ES" else "Medium",
                     "Valor": val_ddm,
-                    "Qué se usó": (
-                        "Dividendo × (1 + crecimiento) ÷ (rentabilidad exigida − crecimiento)"
-                        if lang == "ES"
-                        else "Dividend × (1 + growth) ÷ (required return − growth)"
-                    ),
+                    "Qué se usó": "Dividendo × (1+g) ÷ (r−g)" if lang == "ES" else "Dividend × (1+g) ÷ (r−g)",
                     "Detalle": detalle,
                 })
 
@@ -1012,12 +1037,8 @@ if not st.session_state.analyzed_ticker:
         f"""
         <div class="fade-container" style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
             <div style="font-size:3rem;">🏦</div>
-            <div style="font-size:1.1rem; margin-top:0.5rem;">
-                {T["welcome_1"]}
-            </div>
-            <div style="font-size:0.85rem; margin-top:0.5rem;">
-                {T["welcome_2"]}
-            </div>
+            <div style="font-size:1.1rem; margin-top:0.5rem;">{T["welcome_1"]}</div>
+            <div style="font-size:0.85rem; margin-top:0.5rem;">{T["welcome_2"]}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1031,12 +1052,12 @@ active_ticker = st.session_state.analyzed_ticker
 # =========================
 with st.spinner(f'{T["loading"]} {active_ticker}...'):
     try:
-        stock = yf.Ticker(active_ticker)
-        info = stock.info
-        hist = stock.history(period=period)
-        financials = stock.financials
+        stock        = yf.Ticker(active_ticker)
+        info         = stock.info
+        hist         = stock.history(period=period)
+        financials   = stock.financials
         balance_sheet = stock.balance_sheet
-        cashflow = stock.cashflow
+        cashflow     = stock.cashflow
     except Exception as e:
         st.error(f"Error al obtener datos / Error fetching data: {e}")
         st.stop()
@@ -1047,14 +1068,14 @@ if price is None:
     st.stop()
 
 company_name = info.get("longName") or info.get("shortName") or active_ticker
-sector = info.get("sector", "N/A")
-industry = info.get("industry", "N/A")
-currency = info.get("currency", "USD")
+sector       = info.get("sector", "N/A")
+industry     = info.get("industry", "N/A")
+currency     = info.get("currency", "USD")
 
 prev_close = safe_float(info.get("previousClose"))
 if price and prev_close:
-    chg = price - prev_close
-    chg_pct = chg / prev_close * 100
+    chg      = price - prev_close
+    chg_pct  = chg / prev_close * 100
     color_chg = ACCENT_GREEN if chg >= 0 else ACCENT_RED
     delta_str = f'<span style="color:{color_chg}; font-size:1.05rem;">{chg:+.2f} ({chg_pct:+.2f}%)</span>'
 else:
@@ -1062,29 +1083,26 @@ else:
 
 render_company_header(company_name, active_ticker, sector, industry, currency, price, delta_str)
 
-mc = fmt_large(info.get("marketCap"))
+mc     = fmt_large(info.get("marketCap"))
 high52 = fmt_num(info.get("fiftyTwoWeekHigh"))
-low52 = fmt_num(info.get("fiftyTwoWeekLow"))
+low52  = fmt_num(info.get("fiftyTwoWeekLow"))
 beta_v = fmt_num(info.get("beta"))
 
 k1, k2, k3, k4 = st.columns(4)
-with k1:
-    metric_card(T["market_cap"], mc)
-with k2:
-    metric_card(T["high_52"], f"{high52} {currency}")
-with k3:
-    metric_card(T["low_52"], f"{low52} {currency}")
-with k4:
-    metric_card(T["beta"], beta_v)
+with k1: metric_card(T["market_cap"], mc)
+with k2: metric_card(T["high_52"], f"{high52} {currency}")
+with k3: metric_card(T["low_52"], f"{low52} {currency}")
+with k4: metric_card(T["beta"], beta_v)
 
 returns = None
 
 # =========================
-# TABS (incluye "informes")
+# TABS
 # =========================
-tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin, tab_filings = st.tabs(
-    [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"], "informes"]
-)
+tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin, tab_filings = st.tabs([
+    T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"],
+    T["price"], T["portfolio"], T["financials"], T["informes"]
+])
 
 # -------- TAB EMPRESA --------
 with tab_emp:
@@ -1118,17 +1136,17 @@ with tab_emp:
 with tab_rat:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
 
-    pe = safe_float(info.get("trailingPE"))
-    fwd_pe = safe_float(info.get("forwardPE"))
-    pb = safe_float(info.get("priceToBook"))
-    ps = safe_float(info.get("priceToSalesTrailing12Months"))
-    roe = safe_float(info.get("returnOnEquity"))
-    roa = safe_float(info.get("returnOnAssets"))
-    profit_margin = safe_float(info.get("profitMargins"))
-    gross_margin = safe_float(info.get("grossMargins"))
-    debt_equity = safe_float(info.get("debtToEquity"))
-    current_ratio = safe_float(info.get("currentRatio"))
-    quick_ratio = safe_float(info.get("quickRatio"))
+    pe             = safe_float(info.get("trailingPE"))
+    fwd_pe         = safe_float(info.get("forwardPE"))
+    pb             = safe_float(info.get("priceToBook"))
+    ps             = safe_float(info.get("priceToSalesTrailing12Months"))
+    roe            = safe_float(info.get("returnOnEquity"))
+    roa            = safe_float(info.get("returnOnAssets"))
+    profit_margin  = safe_float(info.get("profitMargins"))
+    gross_margin   = safe_float(info.get("grossMargins"))
+    debt_equity    = safe_float(info.get("debtToEquity"))
+    current_ratio  = safe_float(info.get("currentRatio"))
+    quick_ratio    = safe_float(info.get("quickRatio"))
     dividend_yield = safe_float(info.get("dividendYield"))
 
     col1, col2, col3 = st.columns(3)
@@ -1160,14 +1178,11 @@ with tab_rat:
             return 0.0
         return max(0.0, min(1.0, (v2 - lo) / (hi - lo)))
 
-    radar_labels = [
-        "ROE",
-        "ROA",
-        "Net Margin" if lang == "EN" else "Margen neto",
-        "Low P/E" if lang == "EN" else "P/E bajo",
-        "Low Debt" if lang == "EN" else "Deuda baja",
-        "Liquidity" if lang == "EN" else "Liquidez"
-    ]
+    radar_labels = ["ROE", "ROA",
+                    "Net Margin" if lang == "EN" else "Margen neto",
+                    "Low P/E" if lang == "EN" else "P/E bajo",
+                    "Low Debt" if lang == "EN" else "Deuda baja",
+                    "Liquidity" if lang == "EN" else "Liquidez"]
     radar_values = [
         norm(roe*100 if roe else None, 0, 40),
         norm(roa*100 if roa else None, 0, 20),
@@ -1179,25 +1194,16 @@ with tab_rat:
     radar_values += [radar_values[0]]
     radar_labels += [radar_labels[0]]
 
-    fig_radar = go.Figure(
-        data=go.Scatterpolar(
-            r=radar_values,
-            theta=radar_labels,
-            fill="toself",
-            line_color=ACCENT_GOLD,
-            fillcolor="rgba(182,138,82,0.25)",
-        )
-    )
+    fig_radar = go.Figure(data=go.Scatterpolar(
+        r=radar_values, theta=radar_labels, fill="toself",
+        line_color=ACCENT_GOLD, fillcolor="rgba(182,138,82,0.25)",
+    ))
     fig_radar.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-        showlegend=False,
-        paper_bgcolor="rgba(255,255,255,0)",
-        plot_bgcolor=CARD_BG,
-        height=350,
-        font=dict(color=TEXT_PRIMARY),
+        showlegend=False, paper_bgcolor="rgba(255,255,255,0)",
+        plot_bgcolor=CARD_BG, height=350, font=dict(color=TEXT_PRIMARY),
     )
     st.plotly_chart(fig_radar, use_container_width=True)
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------- TAB VALORACIÓN --------
@@ -1212,17 +1218,16 @@ with tab_val:
         df_val = pd.DataFrame(methods)
 
         def rango_upside(u):
-            if pd.isna(u):
-                return "N/A"
+            if pd.isna(u): return "N/A"
             if lang == "ES":
-                if u >= 40: return "Muy infravalorado"
-                if u >= 20: return "Infravalorado"
+                if u >= 40:  return "Muy infravalorado"
+                if u >= 20:  return "Infravalorado"
                 if u >= -10: return "En línea"
                 if u >= -30: return "Sobrevalorado"
                 return "Muy sobrevalorado"
             else:
-                if u >= 40: return "Deeply undervalued"
-                if u >= 20: return "Undervalued"
+                if u >= 40:  return "Deeply undervalued"
+                if u >= 20:  return "Undervalued"
                 if u >= -10: return "Fairly valued"
                 if u >= -30: return "Overvalued"
                 return "Deeply overvalued"
@@ -1230,68 +1235,45 @@ with tab_val:
         df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
 
         def score_row(row):
-            u = row["Upside %"]
+            u   = row["Upside %"]
             cal = row["Calidad"]
-            if pd.isna(u):
-                base = 2
-            elif u >= 40:
-                base = 5
-            elif u >= 20:
-                base = 4
-            elif u >= 0:
-                base = 3
-            elif u >= -20:
-                base = 2
-            else:
-                base = 1
-
-            if cal in ["Alta", "High"]:
-                base = min(base + 1, 5)
-            elif cal in ["Baja", "Low"]:
-                base = max(base - 1, 1)
-
+            if pd.isna(u):  base = 2
+            elif u >= 40:   base = 5
+            elif u >= 20:   base = 4
+            elif u >= 0:    base = 3
+            elif u >= -20:  base = 2
+            else:           base = 1
+            if cal in ["Alta", "High"]:   base = min(base + 1, 5)
+            elif cal in ["Baja", "Low"]:  base = max(base - 1, 1)
             return "★" * base + "☆" * (5 - base)
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
 
-        def fmt_val(v):
-            return f"{v:.2f}" if pd.notna(v) else "N/A"
-
-        def fmt_up(u):
-            return f"{u:+.1f}%" if pd.notna(u) else "N/A"
-
         df_tabla = pd.DataFrame({
             "Método" if lang == "ES" else "Method": df_val["Método"],
-            T["type"]: df_val["Tipo"],
-            T["score"]: df_val["Score"],
-            "Upside (%)": df_val["Upside %"].apply(fmt_up),
-            T["intrinsic_value"]: df_val["Valor"].apply(fmt_val),
-            T["current_price"]: df_val["Precio"].apply(fmt_val),
-            T["quality"]: df_val["Calidad"],
+            T["type"]:           df_val["Tipo"],
+            T["score"]:          df_val["Score"],
+            "Upside (%)":        df_val["Upside %"].apply(lambda u: f"{u:+.1f}%" if pd.notna(u) else "N/A"),
+            T["intrinsic_value"]: df_val["Valor"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
+            T["current_price"]:  df_val["Precio"].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "N/A"),
+            T["quality"]:        df_val["Calidad"],
             T["interpretation"]: df_val["Interpretación"],
-            T["used"]: df_val["Qué se usó"],
+            T["used"]:           df_val["Qué se usó"],
         })
-
         df_tabla = df_tabla.reindex(df_val.sort_values("Upside %", ascending=False).index)
         render_champagne_table(df_tabla, pills_cols=[T["quality"], T["interpretation"]])
 
         st.markdown("---")
         upsides = df_val["Upside %"].dropna()
         m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            metric_card("Métodos" if lang == "ES" else "Methods", str(len(df_val)))
-        with m2:
-            metric_card("Upside mediano" if lang == "ES" else "Median upside", f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
-        with m3:
-            metric_card("Upside medio" if lang == "ES" else "Mean upside", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A")
-        with m4:
-            metric_card("Rango" if lang == "ES" else "Range", f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A")
+        with m1: metric_card("Métodos" if lang == "ES" else "Methods", str(len(df_val)))
+        with m2: metric_card("Upside mediano" if lang == "ES" else "Median upside", f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
+        with m3: metric_card("Upside medio" if lang == "ES" else "Mean upside", f"{upsides.mean():+.1f}%" if len(upsides) else "N/A")
+        with m4: metric_card("Rango" if lang == "ES" else "Range", f"{upsides.min():+.1f}% / {upsides.max():+.1f}%" if len(upsides) else "N/A")
 
         st.markdown("---")
         st.markdown(f"### {T['detail_methods']}")
-
-        df_det = df_val.sort_values("Upside %", ascending=False).reset_index(drop=True)
-        for _, row in df_det.iterrows():
+        for _, row in df_val.sort_values("Upside %", ascending=False).reset_index(drop=True).iterrows():
             titulo = f"{row['Método']} · {T['intrinsic_value']}: {row['Valor']:.2f} {currency}"
             with st.expander(titulo, expanded=False):
                 c1, c2 = st.columns(2)
@@ -1303,29 +1285,21 @@ with tab_val:
                     st.markdown(f"**{T['intrinsic_value']}:** {row['Valor']:.2f} {currency}")
                     st.markdown(f"**{T['upside']}:** {row['Upside %']:+.1f}%" if pd.notna(row["Upside %"]) else f"**{T['upside']}:** N/A")
                     st.markdown(f"**{T['interpretation']}:** {row['Interpretación']}")
-
                 st.markdown(f"**{T['used']}:** {row['Qué se usó']}")
                 st.markdown(f"**{T['explanation']}:** {row['Detalle']}")
 
         fig_val = px.strip(
-            df_val,
-            x="Upside %",
-            y="Tipo",
-            color="Tipo",
+            df_val, x="Upside %", y="Tipo", color="Tipo",
             hover_data=["Método", "Valor", "Qué se usó"],
             title="Distribución de upside por tipo de método" if lang == "ES" else "Upside distribution by valuation type",
             color_discrete_sequence=CHART_COLORS,
         )
         fig_val.add_vline(x=0, line_dash="dash", line_color="#7A6856", opacity=0.5)
         fig_val.update_layout(
-            paper_bgcolor="rgba(255,255,255,0)",
-            plot_bgcolor=CARD_BG,
-            height=350,
-            font=dict(color=TEXT_PRIMARY),
+            paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG,
+            height=350, font=dict(color=TEXT_PRIMARY),
             xaxis_title="Upside vs precio actual (%)" if lang == "ES" else "Upside vs current price (%)",
         )
-        fig_val.update_xaxes(showgrid=False, linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY))
-        fig_val.update_yaxes(gridcolor="rgba(217,200,180,0.35)", linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY))
         st.plotly_chart(fig_val, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1341,27 +1315,27 @@ with tab_bench:
     else:
         tickers_all = [active_ticker] + peers
         with st.spinner("Descargando benchmarks..." if lang == "ES" else "Downloading benchmarks..."):
-            data = {}
+            data_bench = {}
             for t in tickers_all:
                 try:
-                    tk = yf.Ticker(t)
+                    tk  = yf.Ticker(t)
                     inf = tk.info
-                    data[t] = {
-                        "Name": inf.get("shortName", t),
-                        "P/E": safe_float(inf.get("trailingPE")),
-                        "P/B": safe_float(inf.get("priceToBook")),
-                        "ROE": safe_float(inf.get("returnOnEquity")),
+                    data_bench[t] = {
+                        "Name":       inf.get("shortName", t),
+                        "P/E":        safe_float(inf.get("trailingPE")),
+                        "P/B":        safe_float(inf.get("priceToBook")),
+                        "ROE":        safe_float(inf.get("returnOnEquity")),
                         "Net Margin": safe_float(inf.get("profitMargins")),
-                        "Price": safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
+                        "Price":      safe_float(inf.get("currentPrice")) or safe_float(inf.get("regularMarketPrice")),
                         "Market Cap": safe_float(inf.get("marketCap")),
                     }
                 except Exception:
                     continue
 
-        if len(data) <= 1:
+        if len(data_bench) <= 1:
             st.warning(T["bench_warn"])
         else:
-            df_bench = pd.DataFrame.from_dict(data, orient="index")
+            df_bench = pd.DataFrame.from_dict(data_bench, orient="index")
             df_bench.index.name = "Ticker"
             df_bench.reset_index(inplace=True)
 
@@ -1378,22 +1352,11 @@ with tab_bench:
             render_champagne_table(df_view)
 
             fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_comp.add_trace(
-                go.Bar(x=df_bench["Ticker"], y=df_bench["P/E"], name="P/E", marker_color=ACCENT_GOLD),
-                secondary_y=False,
-            )
-            fig_comp.add_trace(
-                go.Scatter(x=df_bench["Ticker"], y=df_bench["ROE"] * 100, name="ROE (%)", mode="lines+markers", line_color=ACCENT_GREEN),
-                secondary_y=True,
-            )
+            fig_comp.add_trace(go.Bar(x=df_bench["Ticker"], y=df_bench["P/E"], name="P/E", marker_color=ACCENT_GOLD), secondary_y=False)
+            fig_comp.add_trace(go.Scatter(x=df_bench["Ticker"], y=df_bench["ROE"]*100, name="ROE (%)", mode="lines+markers", line_color=ACCENT_GREEN), secondary_y=True)
             fig_comp.update_yaxes(title_text="P/E", secondary_y=False)
             fig_comp.update_yaxes(title_text="ROE (%)", secondary_y=True)
-            fig_comp.update_layout(
-                paper_bgcolor="rgba(255,255,255,0)",
-                plot_bgcolor=CARD_BG,
-                height=400,
-                font=dict(color=TEXT_PRIMARY),
-            )
+            fig_comp.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG, height=400, font=dict(color=TEXT_PRIMARY))
             st.plotly_chart(fig_comp, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1422,23 +1385,13 @@ with tab_corr:
         corr = returns.corr()
         st.markdown(f"#### {T['corr_matrix']}")
         fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale=["#B85C5C", "#FFF8F0", "#5E8B6F"], zmin=-1, zmax=1)
-        fig_corr.update_layout(
-            paper_bgcolor="rgba(255,255,255,0)",
-            plot_bgcolor=CARD_BG,
-            height=420,
-            font=dict(color=TEXT_PRIMARY),
-        )
+        fig_corr.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG, height=420, font=dict(color=TEXT_PRIMARY))
         st.plotly_chart(fig_corr, use_container_width=True)
 
         st.markdown(f"#### {T['cum_returns']}")
         cum = (1 + returns).cumprod()
         fig_cum = px.line(cum, labels={"value": T["cum_returns"], "index": "Date"}, color_discrete_sequence=CHART_COLORS)
-        fig_cum.update_layout(
-            paper_bgcolor="rgba(255,255,255,0)",
-            plot_bgcolor=CARD_BG,
-            height=400,
-            font=dict(color=TEXT_PRIMARY),
-        )
+        fig_cum.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG, height=400, font=dict(color=TEXT_PRIMARY))
         st.plotly_chart(fig_cum, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1450,29 +1403,14 @@ with tab_price:
         st.warning(T["price_hist_warn"])
     else:
         fig_price = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.7, 0.3])
-        fig_price.add_trace(
-            go.Candlestick(
-                x=hist.index,
-                open=hist["Open"],
-                high=hist["High"],
-                low=hist["Low"],
-                close=hist["Close"],
-                name="OHLC",
-                increasing_line_color=ACCENT_GREEN,
-                decreasing_line_color=ACCENT_RED,
-            ),
-            row=1, col=1,
-        )
-        fig_price.add_trace(
-            go.Bar(x=hist.index, y=hist["Volume"], name="Volume", marker_color=ACCENT_GOLD),
-            row=2, col=1,
-        )
+        fig_price.add_trace(go.Candlestick(
+            x=hist.index, open=hist["Open"], high=hist["High"], low=hist["Low"], close=hist["Close"],
+            name="OHLC", increasing_line_color=ACCENT_GREEN, decreasing_line_color=ACCENT_RED,
+        ), row=1, col=1)
+        fig_price.add_trace(go.Bar(x=hist.index, y=hist["Volume"], name="Volume", marker_color=ACCENT_GOLD), row=2, col=1)
         fig_price.update_layout(
-            height=600,
-            xaxis_rangeslider_visible=False,
-            paper_bgcolor="rgba(255,255,255,0)",
-            plot_bgcolor=CARD_BG,
-            font=dict(color=TEXT_PRIMARY),
+            height=600, xaxis_rangeslider_visible=False,
+            paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG, font=dict(color=TEXT_PRIMARY),
         )
         st.plotly_chart(fig_price, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1482,28 +1420,23 @@ with tab_port:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["portfolio_title"])
 
-    if 'returns' in locals() and returns is not None and not returns.empty:
+    if returns is not None and not returns.empty:
         st.markdown(T["portfolio_cfg"])
-
         c_opt1, c_opt2 = st.columns(2)
         with c_opt1:
-            objetivo = st.selectbox(
-                T["optimizer_goal"],
-                [T["goal_sharpe"], T["goal_var"]],
-                key="portfolio_goal"
-            )
+            objetivo = st.selectbox(T["optimizer_goal"], [T["goal_sharpe"], T["goal_var"]], key="portfolio_goal")
         with c_opt2:
             rf_rate = st.number_input(T["rf_rate"], value=4.0, step=0.1) / 100
 
-        num_activos = len(corr_tickers)
+        num_activos        = len(corr_tickers)
         rendimientos_medios = returns.mean() * 252
-        matriz_covarianza = returns.cov() * 252
+        matriz_covarianza   = returns.cov() * 252
 
         def estadisticas_cartera(weights):
-            weights = np.array(weights)
-            r_cartera = np.sum(rendimientos_medios * weights)
+            weights    = np.array(weights)
+            r_cartera  = np.sum(rendimientos_medios * weights)
             vol_cartera = np.sqrt(np.dot(weights.T, np.dot(matriz_covarianza, weights)))
-            sharpe = (r_cartera - rf_rate) / vol_cartera if vol_cartera > 0 else 0
+            sharpe     = (r_cartera - rf_rate) / vol_cartera if vol_cartera > 0 else 0
             return r_cartera, vol_cartera, sharpe
 
         def funcion_a_minimizar(weights):
@@ -1511,57 +1444,41 @@ with tab_port:
                 return -estadisticas_cartera(weights)[2]
             return estadisticas_cartera(weights)[1]
 
-        restricciones = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
-        limites = tuple((0, 1) for _ in range(num_activos))
-        pesos_iniciales = num_activos * [1.0 / num_activos]
-
-        resultado_opt = minimize(
-            funcion_a_minimizar,
-            pesos_iniciales,
-            method='SLSQP',
-            bounds=limites,
-            constraints=restricciones
-        )
+        restricciones = ({"type": "eq", "fun": lambda x: np.sum(x) - 1})
+        limites       = tuple((0, 1) for _ in range(num_activos))
+        resultado_opt = minimize(funcion_a_minimizar, num_activos * [1.0/num_activos],
+                                 method="SLSQP", bounds=limites, constraints=restricciones)
 
         if resultado_opt.success:
-            pesos_optimos = resultado_opt.x
+            pesos_optimos     = resultado_opt.x
             r_opt, vol_opt, sharpe_opt = estadisticas_cartera(pesos_optimos)
 
             st.markdown(f"#### {T['portfolio_metrics']}")
             m_p1, m_p2, m_p3 = st.columns(3)
             m_p1.metric(T["exp_return"], f"{r_opt*100:.2f}%")
             m_p2.metric(T["volatility"], f"{vol_opt*100:.2f}%")
-            m_p3.metric(T["sharpe"], f"{sharpe_opt:.2f}")
+            m_p3.metric(T["sharpe"],     f"{sharpe_opt:.2f}")
 
             df_pesos = pd.DataFrame({
                 "Activo" if lang == "ES" else "Asset": corr_tickers,
-                "Ponderación Óptima (%)" if lang == "ES" else "Optimal Weight (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
-                "Fracción Decimal" if lang == "ES" else "Decimal Weight": np.round(pesos_optimos, 4)
-            }).sort_values(by="Fracción Decimal" if lang == "ES" else "Decimal Weight", ascending=False)
-
+                "Ponderación (%)" if lang == "ES" else "Weight (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
+                "Fracción" if lang == "ES" else "Decimal": np.round(pesos_optimos, 4)
+            }).sort_values(by="Fracción" if lang == "ES" else "Decimal", ascending=False)
             render_champagne_table(df_pesos)
 
-            weight_col = "Fracción Decimal" if lang == "ES" else "Decimal Weight"
-            name_col = "Activo" if lang == "ES" else "Asset"
-
             fig_pie = px.pie(
-                df_pesos[df_pesos[weight_col] > 0.001],
-                values=weight_col,
-                names=name_col,
+                df_pesos[df_pesos["Fracción" if lang == "ES" else "Decimal"] > 0.001],
+                values="Fracción" if lang == "ES" else "Decimal",
+                names="Activo" if lang == "ES" else "Asset",
                 title=("Distribución recomendada de capital" if lang == "ES" else "Recommended capital allocation") + f" ({objetivo})",
                 color_discrete_sequence=CHART_COLORS
             )
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(255,255,255,0)",
-                plot_bgcolor=CARD_BG,
-                font=dict(color=TEXT_PRIMARY)
-            )
+            fig_pie.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor=CARD_BG, font=dict(color=TEXT_PRIMARY))
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
             st.error("El algoritmo no convergió / The optimizer did not converge.")
     else:
         st.warning(T["portfolio_warn"])
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------- TAB FINANCIALS --------
@@ -1572,66 +1489,111 @@ with tab_fin:
     with fs1:
         st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_income = format_financial_df(financials)
-        if df_income is not None:
-            render_champagne_table(df_income)
-        else:
-            st.info(T["no_data"])
+        if df_income is not None: render_champagne_table(df_income)
+        else: st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
 
     with fs2:
         st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_bs = format_financial_df(balance_sheet)
-        if df_bs is not None:
-            render_champagne_table(df_bs)
-        else:
-            st.info(T["no_data"])
+        if df_bs is not None: render_champagne_table(df_bs)
+        else: st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
 
     with fs3:
         st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_cf = format_financial_df(cashflow)
-        if df_cf is not None:
-            render_champagne_table(df_cf)
-        else:
-            st.info(T["no_data"])
+        if df_cf is not None: render_champagne_table(df_cf)
+        else: st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- TAB INFORMES (SEC / CNMV) --------
+# -------- TAB INFORMES SEC / CNMV --------
 with tab_filings:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
-    st.subheader("informes")
+    st.subheader("📋 Informes regulatorios (SEC / CNMV)" if lang == "ES" else "📋 Regulatory filings (SEC / CNMV)")
 
     ticker_base = active_ticker.split(".")[0].upper()
-    df_all = []
+    df_all      = []
 
-    # SEC: si parece ticker USA (sin sufijo tipo .MC, .L, etc.)
-    if "." not in active_ticker or active_ticker.endswith(".US"):
-        cik = get_cik_from_ticker_us(ticker_base)
+    # Detectar si es ticker USA por exclusión de sufijos extranjeros conocidos
+    is_us_ticker = not any(active_ticker.upper().endswith(s) for s in SUFFIXES_NO_US)
+
+    if is_us_ticker:
+        with st.spinner("🔍 Buscando CIK en EDGAR (SEC)..." if lang == "ES" else "🔍 Looking up CIK on SEC EDGAR..."):
+            cik = get_cik_from_ticker_us(ticker_base)
+
         if cik:
-            df_sec = get_sec_filings_metadata(cik)
+            with st.spinner("📥 Descargando filings de la SEC..." if lang == "ES" else "📥 Downloading SEC filings..."):
+                df_sec = get_sec_filings_metadata(cik)
+
             if not df_sec.empty:
                 df_all.append(df_sec)
+                st.success(
+                    f"✅ {'Se encontraron' if lang == 'ES' else 'Found'} **{len(df_sec)}** "
+                    f"{'informes' if lang == 'ES' else 'filings'} en la SEC para **{ticker_base}** "
+                    f"(CIK: {int(cik)})"
+                )
+            else:
+                st.warning(
+                    f"⚠️ CIK encontrado ({int(cik)}) pero no se obtuvieron filings. Puede ser un problema temporal con la API de la SEC."
+                    if lang == "ES" else
+                    f"⚠️ CIK found ({int(cik)}) but no filings returned. This might be a temporary SEC API issue."
+                )
+        else:
+            st.info(
+                f"ℹ️ No se encontró CIK para **{ticker_base}** en la SEC. La empresa puede no cotizar en EE.UU. o usar un ticker diferente."
+                if lang == "ES" else
+                f"ℹ️ No CIK found for **{ticker_base}** in SEC. The company may not be US-listed or may use a different ticker."
+            )
 
-    # CNMV: si es ticker español .MC → aquí llamas a tu función stub
-    if active_ticker.endswith(".MC"):
-        df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
+    # CNMV para tickers .MC
+    if active_ticker.upper().endswith(".MC"):
+        with st.spinner("🔍 Buscando en CNMV..."):
+            df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
         if df_cnmv is not None and not df_cnmv.empty:
             df_all.append(df_cnmv)
 
     if df_all:
         df_filings = pd.concat(df_all, ignore_index=True)
 
-        # Orden sencillo por fecha (desc)
         if "Fecha" in df_filings.columns:
             try:
                 df_filings["Fecha"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
                 df_filings.sort_values("Fecha", ascending=False, inplace=True)
-                df_filings["Fecha"] = df_filings["Fecha"].dt.date.astype(str)
+                df_filings["Fecha"] = df_filings["Fecha"].dt.strftime("%Y-%m-%d")
             except Exception:
                 pass
 
-        render_champagne_table(df_filings)
-    else:
-        st.info("No se han encontrado informes regulatorios para este ticker.")
+        form_options   = sorted(df_filings["Formulario"].unique().tolist())
+        selected_forms = st.multiselect(
+            "Filtrar por tipo:" if lang == "ES" else "Filter by type:",
+            options=form_options, default=form_options, key="sec_form_filter"
+        )
+        df_show = df_filings[df_filings["Formulario"].isin(selected_forms)].copy()
+
+        if df_show.empty:
+            st.info("No hay informes para los filtros seleccionados." if lang == "ES" else "No filings match the selected filters.")
+        else:
+            cols_show = [c for c in ["Formulario", "Descripción", "Fecha", "Documento", "Ver informe", "EDGAR"] if c in df_show.columns]
+            render_champagne_table(df_show[cols_show], html_cols=["Ver informe", "EDGAR"])
+            st.caption(
+                f"{'Mostrando' if lang == 'ES' else 'Showing'} {len(df_show)} "
+                f"{'informes' if lang == 'ES' else 'filings'}. Fuente: SEC EDGAR"
+            )
+
+    elif not is_us_ticker and not active_ticker.upper().endswith(".MC"):
+        st.info(
+            "ℹ️ Los informes regulatorios (SEC/CNMV) solo están disponibles para tickers de EE.UU. y España (.MC)."
+            if lang == "ES" else
+            "ℹ️ Regulatory filings are only available for US tickers and Spanish tickers (.MC)."
+        )
+
+    if is_us_ticker:
+        edgar_search = f"https://www.sec.gov/cgi-bin/browse-edgar?company={ticker_base}&CIK=&type=10-K&dateb=&owner=include&count=40&search_text=&action=getcompany"
+        st.markdown(
+            f'<a href="{edgar_search}" target="_blank" style="color:{ACCENT_GOLD}; font-size:0.88rem; text-decoration:none;">'
+            f'🔗 {"Buscar directamente en EDGAR" if lang == "ES" else "Search directly on EDGAR"}</a>',
+            unsafe_allow_html=True
+        )
 
     st.markdown('</div>', unsafe_allow_html=True)
