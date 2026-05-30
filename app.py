@@ -171,7 +171,7 @@ st.markdown(
         0%   {{ opacity: 0; transform: translateY(10px); }}
         100% {{ opacity: 1; transform: translateY(0); }}
     }}
-    /* ── METRIC CARDS NATIVAS ── */
+    /* ── METRIC CARDS ── */
     div[data-testid="stMetric"] {{
         background: linear-gradient(180deg, {CARD_BG} 0%, {CARD_BG_2} 100%);
         border: 1px solid {BORDER};
@@ -309,7 +309,7 @@ def fmt_large(x):
     elif v >= 1e6: return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
 
-# ── Metric card usando st.metric nativo (sin HTML custom) ──
+# ── Metric card usando st.metric nativo ──
 def metric_card(label, value, sub=None):
     st.metric(label=label, value=value, delta=sub, delta_color="off")
 
@@ -387,13 +387,29 @@ def get_benchmark_list(info, main_ticker):
     return [p for p in peers if p.upper() != main_ticker.upper()][:4]
 
 def format_financial_df(df):
-    if df is None or df.empty:
+    # Versión robusta para evitar errores y artefactos HTML
+    if df is None or getattr(df, "empty", True):
         return None
-    out = df.copy().iloc[:, :6]
-    out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
-    out = out.fillna(np.nan).map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
+
+    out = df.copy()
+    out = out.iloc[:, :6]
+
+    cols = []
+    for c in out.columns:
+        if hasattr(c, "date"):
+            cols.append(str(c.date()))
+        else:
+            s = str(c)
+            cols.append(s[:10])
+    out.columns = cols
+
+    out = out.applymap(
+        lambda x: fmt_large(x) if pd.notna(x) and isinstance(x, (int, float, np.number)) else x
+    )
+
     out.reset_index(inplace=True)
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
+
     return out
 
 # =========================
@@ -484,7 +500,7 @@ REGULATORY_SEARCH_LINKS = {
     ".L":  "https://www.londonstockexchange.com/live-markets/company-news-and-events/",
     ".PA": "https://live.euronext.com/en/product/equities/{ticker}-XPAR",
     ".AS": "https://live.euronext.com/en/product/equities/{ticker}-XAMS",
-    ".MI": "https://www.borsaitaliana.it/borsa/azioni/scheda/{ticker}.html",
+    ".MI": "https://www.borsaitaliana.it/borsa/acciones/scheda/{ticker}.html",
     ".BR": "https://live.euronext.com/en/product/equities/{ticker}-XBRU",
     ".LS": "https://live.euronext.com/en/product/equities/{ticker}-XLIS",
     ".DE": "https://www.bundesanzeiger.de/pub/de/start",
@@ -1134,15 +1150,26 @@ with tab_port:
 # ── TAB FINANCIALS ──
 with tab_fin:
     st.subheader(T["financials_title"])
-    for tab_f, df_f, lbl in zip(
-        st.tabs([T["income_stmt"], T["balance_sheet"], T["cash_flow"]]),
-        [financials, balance_sheet, cashflow],
-        [T["income_stmt"], T["balance_sheet"], T["cash_flow"]]
-    ):
-        with tab_f:
+
+    fin_tabs = st.tabs([
+        T["income_stmt"],
+        T["balance_sheet"],
+        T["cash_flow"]
+    ])
+
+    data_frames = [financials, balance_sheet, cashflow]
+
+    for inner_tab, df_f in zip(fin_tabs, data_frames):
+        with inner_tab:
             st.markdown('<div class="fade-container">', unsafe_allow_html=True)
+
             df_fmt = format_financial_df(df_f)
-            render_champagne_table(df_fmt) if df_fmt is not None else st.info(T["no_data"])
+
+            if df_fmt is not None:
+                render_champagne_table(df_fmt)
+            else:
+                st.info(T["no_data"])
+
             st.markdown('</div>', unsafe_allow_html=True)
 
 # ── TAB INFORMES ──
