@@ -214,7 +214,7 @@ TEXTS = {
 }
 
 # =========================
-# CSS
+# CSS: estilo + transiciones
 # =========================
 st.markdown(
     f"""
@@ -259,6 +259,17 @@ st.markdown(
         width: 100%;
         background: linear-gradient(90deg, transparent, {BORDER}, transparent);
         margin: 1.25rem 0 1.75rem 0;
+    }}
+
+    /* CONTENEDOR CON TRANSICIÓN */
+    .fade-container {{
+        opacity: 0;
+        animation: fadeInUp 0.45s ease-out forwards;
+    }}
+
+    @keyframes fadeInUp {{
+        0%   {{ opacity: 0; transform: translateY(10px); }}
+        100% {{ opacity: 1; transform: translateY(0); }}
     }}
 
     .metric-card {{
@@ -507,7 +518,7 @@ def metric_card(label, value, sub=None):
 def render_company_header(company_name, ticker, sector, industry, currency, price, delta_html=""):
     st.markdown(
         f"""
-        <div class="company-header">
+        <div class="company-header fade-container">
             <div class="company-name">{company_name}</div>
             <div class="company-meta">{ticker} · {sector} · {industry} · {currency}</div>
             <div class="company-price">{price:.2f} {currency} {delta_html}</div>
@@ -527,7 +538,7 @@ def render_champagne_table(df: pd.DataFrame, pills_cols=None):
             return "pill pill-red"
         return "pill pill-gold"
 
-    html = '<div class="champ-table-wrap"><table class="champ-table"><thead><tr>'
+    html = '<div class="champ-table-wrap fade-container"><table class="champ-table"><thead><tr>'
     for col in df.columns:
         html += f"<th>{col}</th>"
     html += "</tr></thead><tbody>"
@@ -596,7 +607,7 @@ def format_financial_df(df):
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
 
-    # FIX pandas 3.x: applymap eliminado, usar map
+    # pandas 3.x: applymap -> map (elementwise) [web:181]
     out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
 
     out.reset_index(inplace=True)
@@ -851,7 +862,7 @@ def compute_valuations(info, currency):
 top1, top2 = st.columns([5, 1])
 with top2:
     st.selectbox(
-        T["language"],
+        TEXTS[st.session_state.language]["language"],
         options=["ES", "EN"],
         key="language"
     )
@@ -861,7 +872,7 @@ T = TEXTS[lang]
 
 st.markdown(
     f"""
-    <div class="hero-wrap">
+    <div class="hero-wrap fade-container">
         <div class="hero-title">{T["hero_title"]}</div>
         <div class="hero-sub">{T["hero_sub"]}</div>
     </div>
@@ -921,7 +932,7 @@ if not st.session_state.analyzed_ticker:
     st.markdown("---")
     st.markdown(
         f"""
-        <div style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
+        <div class="fade-container" style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
             <div style="font-size:3rem;">🏦</div>
             <div style="font-size:1.1rem; margin-top:0.5rem;">
                 {T["welcome_1"]}
@@ -991,16 +1002,15 @@ with k4:
 returns = None
 
 # =========================
-# TABS
+# TABS (envueltas en fade cada una)
 # =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin = st.tabs(
     [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"]]
 )
 
-# =========================
-# TAB EMPRESA
-# =========================
+# -------- TAB EMPRESA --------
 with tab_emp:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     c1, c2 = st.columns([2, 1])
     with c1:
         st.subheader(T["description"])
@@ -1024,11 +1034,12 @@ with tab_emp:
             ]
         })
         render_champagne_table(corp_df)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================
-# TAB RATIOS
-# =========================
+# -------- TAB RATIOS --------
 with tab_rat:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
+
     pe = safe_float(info.get("trailingPE"))
     fwd_pe = safe_float(info.get("forwardPE"))
     pb = safe_float(info.get("priceToBook"))
@@ -1109,10 +1120,11 @@ with tab_rat:
     )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-# =========================
-# TAB VALORACIÓN
-# =========================
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- TAB VALORACIÓN --------
 with tab_val:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["intrinsic_title"])
     methods, current_price = compute_valuations(info, currency)
 
@@ -1238,10 +1250,11 @@ with tab_val:
         fig_val.update_yaxes(gridcolor="rgba(217,200,180,0.35)", linecolor=BORDER, tickfont=dict(color=TEXT_SECONDARY))
         st.plotly_chart(fig_val, use_container_width=True)
 
-# =========================
-# TAB BENCHMARKS
-# =========================
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- TAB BENCHMARKS --------
 with tab_bench:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["bench_title"])
     peers = get_benchmark_list(info, active_ticker)
 
@@ -1305,10 +1318,11 @@ with tab_bench:
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-# =========================
-# TAB CORRELACIONES
-# =========================
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- TAB CORRELACIONES --------
 with tab_corr:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["corr_title"])
     corr_tickers = [t.strip().upper() for t in corr_tickers_input.replace(",", "\n").split("\n") if t.strip()]
     if active_ticker not in corr_tickers:
@@ -1348,11 +1362,11 @@ with tab_corr:
             font=dict(color=TEXT_PRIMARY),
         )
         st.plotly_chart(fig_cum, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================
-# TAB PRECIO
-# =========================
+# -------- TAB PRECIO --------
 with tab_price:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["price_hist"])
     if hist is None or hist.empty:
         st.warning(T["price_hist_warn"])
@@ -1383,14 +1397,14 @@ with tab_price:
             font=dict(color=TEXT_PRIMARY),
         )
         st.plotly_chart(fig_price, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# =========================
-# TAB PORTFOLIO
-# =========================
+# -------- TAB PORTFOLIO --------
 with tab_port:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["portfolio_title"])
 
-    if returns is not None and not returns.empty:
+    if 'returns' in locals() and returns is not None and not returns.empty:
         st.markdown(T["portfolio_cfg"])
 
         c_opt1, c_opt2 = st.columns(2)
@@ -1470,31 +1484,36 @@ with tab_port:
     else:
         st.warning(T["portfolio_warn"])
 
-# =========================
-# TAB FINANCIALS
-# =========================
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- TAB FINANCIALS --------
 with tab_fin:
     st.subheader(T["financials_title"])
-
     fs1, fs2, fs3 = st.tabs([T["income_stmt"], T["balance_sheet"], T["cash_flow"]])
 
     with fs1:
+        st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_income = format_financial_df(financials)
         if df_income is not None:
             render_champagne_table(df_income)
         else:
             st.info(T["no_data"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with fs2:
+        st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_bs = format_financial_df(balance_sheet)
         if df_bs is not None:
             render_champagne_table(df_bs)
         else:
             st.info(T["no_data"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with fs3:
+        st.markdown('<div class="fade-container">', unsafe_allow_html=True)
         df_cf = format_financial_df(cashflow)
         if df_cf is not None:
             render_champagne_table(df_cf)
         else:
             st.info(T["no_data"])
+        st.markdown('</div>', unsafe_allow_html=True)
