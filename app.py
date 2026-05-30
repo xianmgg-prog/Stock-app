@@ -214,7 +214,7 @@ TEXTS = {
 }
 
 # =========================
-# CSS: estilo + transiciones
+# CSS (incluye transiciones)
 # =========================
 st.markdown(
     f"""
@@ -261,7 +261,6 @@ st.markdown(
         margin: 1.25rem 0 1.75rem 0;
     }}
 
-    /* CONTENEDOR CON TRANSICIÓN */
     .fade-container {{
         opacity: 0;
         animation: fadeInUp 0.45s ease-out forwards;
@@ -607,7 +606,7 @@ def format_financial_df(df):
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
 
-    # pandas 3.x: applymap -> map (elementwise) [web:181]
+    # pandas 3.x: DataFrame.map aplica función elemento a elemento [web:181]
     out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
 
     out.reset_index(inplace=True)
@@ -615,7 +614,86 @@ def format_financial_df(df):
     return out
 
 # =========================
-# VALORACIÓN
+# SEC / CNMV HELPERS
+# =========================
+
+SEC_BASE = "https://data.sec.gov"
+SEC_HEADERS = {
+    # Cambia esto por tus datos reales de contacto (la SEC lo exige) [web:125][web:141].
+    "User-Agent": "TuNombreEquityTerminal/1.0 contacto@tuemail.com",
+    "Accept-Encoding": "gzip, deflate",
+    "Host": "data.sec.gov",
+}
+
+def get_cik_from_ticker_us(ticker: str) -> str | None:
+    """
+    Devuelve el CIK (10 dígitos con ceros) para un ticker USA usando el JSON oficial de la SEC [web:223].
+    """
+    try:
+        url = "https://www.sec.gov/files/company_tickers.json"
+        resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        ticker_up = ticker.upper().replace(".", "")
+        for entry in data.values():
+            if entry["ticker"].upper() == ticker_up:
+                cik = str(entry["cik_str"]).zfill(10)
+                return cik
+        return None
+    except Exception:
+        return None
+
+def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFrame:
+    """
+    Usa la API submissions de EDGAR para obtener historial de filings de un CIK [web:125][web:141].
+    """
+    if form_types is None:
+        form_types = ["10-K", "10-Q", "20-F", "40-F"]
+    try:
+        url = f"{SEC_BASE}/submissions/CIK{cik}.json"
+        resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
+        resp.raise_for_status()
+        j = resp.json()
+        filings = j.get("filings", {}).get("recent", {})
+        forms = filings.get("form", [])
+        dates = filings.get("filingDate", [])
+        acc_no = filings.get("accessionNumber", [])
+        primary_docs = filings.get("primaryDocument", [])
+
+        rows = []
+        for f, d, a, doc in zip(forms, dates, acc_no, primary_docs):
+            if f not in form_types:
+                continue
+            accession_clean = a.replace("-", "")
+            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_clean}/{doc}"
+            rows.append({
+                "Regulador": "SEC",
+                "CIK": cik,
+                "Formulario": f,
+                "Fecha": d,
+                "Documento": doc,
+                "URL": filing_url,
+            })
+            if len(rows) >= limit:
+                break
+
+        return pd.DataFrame(rows)
+    except Exception:
+        return pd.DataFrame()
+
+# CNMV: stub para que tú lo completes con el endpoint que prefieras [web:219][web:134][web:220].
+def get_cnmv_filings_for_spanish_issuer(ticker_base: str) -> pd.DataFrame:
+    """
+    Dado un ticker español sin sufijo (ej: ITX, SAN, TEF) devuelve informes de CNMV.
+    AHORA MISMO ES SOLO UN ESQUELETO: debes rellenar la parte de la API concreta de CNMV.
+    """
+    # Aquí dentro es donde llamarías a la API de informes financieros/anuales de la CNMV
+    # y construirías un DataFrame con columnas Regualdor, Formulario, Fecha, Documento, URL.
+    # Ejemplo de estructura vacía:
+    return pd.DataFrame()
+
+# =========================
+# VALORACIÓN (igual que antes)
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -1002,10 +1080,10 @@ with k4:
 returns = None
 
 # =========================
-# TABS (envueltas en fade cada una)
+# TABS (incluye "informes")
 # =========================
-tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin = st.tabs(
-    [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"]]
+tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin, tab_filings = st.tabs(
+    [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"], "informes"]
 )
 
 # -------- TAB EMPRESA --------
@@ -1517,3 +1595,43 @@ with tab_fin:
         else:
             st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- TAB INFORMES (SEC / CNMV) --------
+with tab_filings:
+    st.markdown('<div class="fade-container">', unsafe_allow_html=True)
+    st.subheader("informes")
+
+    ticker_base = active_ticker.split(".")[0].upper()
+    df_all = []
+
+    # SEC: si parece ticker USA (sin sufijo tipo .MC, .L, etc.)
+    if "." not in active_ticker or active_ticker.endswith(".US"):
+        cik = get_cik_from_ticker_us(ticker_base)
+        if cik:
+            df_sec = get_sec_filings_metadata(cik)
+            if not df_sec.empty:
+                df_all.append(df_sec)
+
+    # CNMV: si es ticker español .MC → aquí llamas a tu función stub
+    if active_ticker.endswith(".MC"):
+        df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
+        if df_cnmv is not None and not df_cnmv.empty:
+            df_all.append(df_cnmv)
+
+    if df_all:
+        df_filings = pd.concat(df_all, ignore_index=True)
+
+        # Orden sencillo por fecha (desc)
+        if "Fecha" in df_filings.columns:
+            try:
+                df_filings["Fecha"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
+                df_filings.sort_values("Fecha", ascending=False, inplace=True)
+                df_filings["Fecha"] = df_filings["Fecha"].dt.date.astype(str)
+            except Exception:
+                pass
+
+        render_champagne_table(df_filings)
+    else:
+        st.info("No se han encontrado informes regulatorios para este ticker.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
