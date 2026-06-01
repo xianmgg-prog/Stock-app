@@ -9,6 +9,8 @@ import requests
 import math
 from scipy.optimize import minimize
 from deep_translator import GoogleTranslator
+import base64
+import streamlit.components.v1 as components
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
@@ -606,7 +608,6 @@ def format_financial_df(df):
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
 
-    # pandas 3.x: DataFrame.map aplica función elemento a elemento [web:181]
     out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
 
     out.reset_index(inplace=True)
@@ -619,16 +620,13 @@ def format_financial_df(df):
 
 SEC_BASE = "https://data.sec.gov"
 SEC_HEADERS = {
-    # Cambia esto por tus datos reales de contacto (la SEC lo exige) [web:125][web:141].
+    # Cambia esto por tus datos reales de contacto (la SEC lo exige).
     "User-Agent": "TuNombreEquityTerminal/1.0 contacto@tuemail.com",
     "Accept-Encoding": "gzip, deflate",
     "Host": "data.sec.gov",
 }
 
 def get_cik_from_ticker_us(ticker: str) -> str | None:
-    """
-    Devuelve el CIK (10 dígitos con ceros) para un ticker USA usando el JSON oficial de la SEC [web:223].
-    """
     try:
         url = "https://www.sec.gov/files/company_tickers.json"
         resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
@@ -644,9 +642,6 @@ def get_cik_from_ticker_us(ticker: str) -> str | None:
         return None
 
 def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFrame:
-    """
-    Usa la API submissions de EDGAR para obtener historial de filings de un CIK [web:125][web:141].
-    """
     if form_types is None:
         form_types = ["10-K", "10-Q", "20-F", "40-F"]
     try:
@@ -681,19 +676,13 @@ def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFram
     except Exception:
         return pd.DataFrame()
 
-# CNMV: stub para que tú lo completes con el endpoint que prefieras [web:219][web:134][web:220].
 def get_cnmv_filings_for_spanish_issuer(ticker_base: str) -> pd.DataFrame:
-    """
-    Dado un ticker español sin sufijo (ej: ITX, SAN, TEF) devuelve informes de CNMV.
-    AHORA MISMO ES SOLO UN ESQUELETO: debes rellenar la parte de la API concreta de CNMV.
-    """
     # Aquí dentro es donde llamarías a la API de informes financieros/anuales de la CNMV
     # y construirías un DataFrame con columnas Regualdor, Formulario, Fecha, Documento, URL.
-    # Ejemplo de estructura vacía:
     return pd.DataFrame()
 
 # =========================
-# VALORACIÓN (igual que antes)
+# VALORACIÓN
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -1083,7 +1072,7 @@ returns = None
 # TABS (incluye "informes")
 # =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin, tab_filings = st.tabs(
-    [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"], "informes"]
+    [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"], "Informes"]
 )
 
 # -------- TAB EMPRESA --------
@@ -1599,7 +1588,7 @@ with tab_fin:
 # -------- TAB INFORMES (SEC / CNMV) --------
 with tab_filings:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
-    st.subheader("informes")
+    st.subheader("Informes Regulatorios")
 
     ticker_base = active_ticker.split(".")[0].upper()
     df_all = []
@@ -1612,7 +1601,7 @@ with tab_filings:
             if not df_sec.empty:
                 df_all.append(df_sec)
 
-    # CNMV: si es ticker español .MC → aquí llamas a tu función stub
+    # CNMV: si es ticker español .MC
     if active_ticker.endswith(".MC"):
         df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
         if df_cnmv is not None and not df_cnmv.empty:
@@ -1621,7 +1610,7 @@ with tab_filings:
     if df_all:
         df_filings = pd.concat(df_all, ignore_index=True)
 
-        # Orden sencillo por fecha (desc)
+        # Ordenar por fecha (descendente)
         if "Fecha" in df_filings.columns:
             try:
                 df_filings["Fecha"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
@@ -1630,7 +1619,55 @@ with tab_filings:
             except Exception:
                 pass
 
+        # Mostrar tabla resumen
         render_champagne_table(df_filings)
+        
+        st.markdown("---")
+        st.markdown("### Visor de Documentos")
+        
+        # Selector de informe
+        opciones = df_filings.apply(
+            lambda r: f"{r['Fecha']} | {r['Regulador']} | {r['Formulario']}", axis=1
+        ).tolist()
+        
+        informe_seleccionado = st.selectbox("Selecciona un informe para visualizar:", opciones)
+        idx = opciones.index(informe_seleccionado)
+        fila = df_filings.iloc[idx]
+        url_doc = fila["URL"]
+        
+        st.markdown(f"🔗 **[Abrir documento original en el navegador]({url_doc})**")
+
+        if st.button("Cargar y visualizar aquí", type="primary"):
+            with st.spinner("Descargando y procesando el documento..."):
+                try:
+                    # Descargamos el archivo haciéndonos pasar por un navegador/usuario
+                    resp = requests.get(url_doc, headers=SEC_HEADERS, timeout=15)
+                    resp.raise_for_status()
+                    
+                    content_type = resp.headers.get("Content-Type", "").lower()
+                    
+                    # Si el documento es un PDF (Típico en CNMV)
+                    if "application/pdf" in content_type or url_doc.lower().endswith(".pdf"):
+                        b64_pdf = base64.b64encode(resp.content).decode("utf-8")
+                        pdf_html = f'''
+                            <iframe src="data:application/pdf;base64,{b64_pdf}" 
+                                    width="100%" 
+                                    height="800px" 
+                                    style="border: 1px solid #D9C8B4; border-radius: 8px;">
+                            </iframe>
+                        '''
+                        st.markdown(pdf_html, unsafe_allow_html=True)
+                        
+                    # Si el documento es HTML (Típico en la SEC)
+                    else:
+                        st.info("Nota: Este informe es un documento HTML interactivo (estándar de la SEC).")
+                        # Modificamos el HTML base para adaptar rutas relativas si las hubiera
+                        html_content = resp.text.replace('src="/', 'src="https://www.sec.gov/')
+                        components.html(html_content, height=800, scrolling=True)
+                        
+                except Exception as e:
+                    st.error(f"No se pudo cargar el documento de forma integrada. Error: {e}")
+
     else:
         st.info("No se han encontrado informes regulatorios para este ticker.")
 
