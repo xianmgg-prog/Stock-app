@@ -7,10 +7,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
 import math
-from scipy.optimize import minimize
-from deep_translator import GoogleTranslator
+import io
 import base64
 import streamlit.components.v1 as components
+from scipy.optimize import minimize
+from deep_translator import GoogleTranslator
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
@@ -216,7 +217,7 @@ TEXTS = {
 }
 
 # =========================
-# CSS (incluye transiciones)
+# CSS
 # =========================
 st.markdown(
     f"""
@@ -457,6 +458,7 @@ st.markdown(
 lang = st.session_state.language
 T = TEXTS[lang]
 
+
 def tr_text(text, target_lang="en"):
     if not text or not isinstance(text, str):
         return text
@@ -465,10 +467,12 @@ def tr_text(text, target_lang="en"):
     except Exception:
         return text
 
+
 def maybe_translate(text):
     if st.session_state.language == "EN":
         return tr_text(text, "en")
     return text
+
 
 def safe_float(x, default=None):
     if x is None:
@@ -483,11 +487,13 @@ def safe_float(x, default=None):
     except Exception:
         return default
 
+
 def fmt_num(x, decimals=2, suffix=""):
     v = safe_float(x, None)
     if v is None:
         return "N/A"
     return f"{v:.{decimals}f}{suffix}"
+
 
 def fmt_large(x):
     v = safe_float(x, None)
@@ -503,6 +509,7 @@ def fmt_large(x):
         return f"{sign*v/1e6:.2f}M"
     return f"{sign*v:.0f}"
 
+
 def metric_card(label, value, sub=None):
     sub_html = f'<div class="metric-sub">{sub}</div>' if sub else ""
     st.markdown(
@@ -516,6 +523,7 @@ def metric_card(label, value, sub=None):
         unsafe_allow_html=True,
     )
 
+
 def render_company_header(company_name, ticker, sector, industry, currency, price, delta_html=""):
     st.markdown(
         f"""
@@ -527,6 +535,7 @@ def render_company_header(company_name, ticker, sector, industry, currency, pric
         """,
         unsafe_allow_html=True,
     )
+
 
 def render_champagne_table(df: pd.DataFrame, pills_cols=None):
     pills_cols = pills_cols or []
@@ -558,6 +567,7 @@ def render_champagne_table(df: pd.DataFrame, pills_cols=None):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
+
 def search_ticker(query: str):
     if not query:
         return []
@@ -580,6 +590,7 @@ def search_ticker(query: str):
     except Exception:
         return []
 
+
 DEFAULT_BENCHMARKS = {
     "Technology": ["AAPL", "MSFT", "GOOGL", "META", "AMZN"],
     "Communication Services": ["GOOGL", "META", "NFLX", "DIS"],
@@ -588,11 +599,13 @@ DEFAULT_BENCHMARKS = {
     "Energy": ["XOM", "CVX", "BP", "TTE"],
 }
 
+
 def get_benchmark_list(info, main_ticker):
     sector = info.get("sector")
     peers = DEFAULT_BENCHMARKS.get(sector, [])
     peers = [p for p in peers if p.upper() != main_ticker.upper()]
     return peers[:4]
+
 
 def format_financial_df(df):
     if df is None or df.empty:
@@ -607,12 +620,11 @@ def format_financial_df(df):
 
     out.columns = [str(c.date()) if hasattr(c, "date") else str(c)[:10] for c in out.columns]
     out = out.fillna(np.nan)
-
     out = out.map(lambda x: fmt_large(x) if pd.notna(x) else "N/A")
-
     out.reset_index(inplace=True)
     out.rename(columns={"index": "Concepto" if lang == "ES" else "Item"}, inplace=True)
     return out
+
 
 # =========================
 # SEC / CNMV HELPERS
@@ -620,16 +632,20 @@ def format_financial_df(df):
 
 SEC_BASE = "https://data.sec.gov"
 SEC_HEADERS = {
-    # Cambia esto por tus datos reales de contacto (la SEC lo exige).
-    "User-Agent": "TuNombreEquityTerminal/1.0 contacto@tuemail.com",
+    "User-Agent": "EquityTerminal/1.0 contacto@equityterminal.com",
     "Accept-Encoding": "gzip, deflate",
     "Host": "data.sec.gov",
 }
+SEC_HEADERS_WWW = {
+    "User-Agent": "EquityTerminal/1.0 contacto@equityterminal.com",
+    "Accept-Encoding": "gzip, deflate",
+}
 
-def get_cik_from_ticker_us(ticker: str) -> str | None:
+
+def get_cik_from_ticker_us(ticker: str):
     try:
         url = "https://www.sec.gov/files/company_tickers.json"
-        resp = requests.get(url, headers=SEC_HEADERS, timeout=30)
+        resp = requests.get(url, headers=SEC_HEADERS_WWW, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         ticker_up = ticker.upper().replace(".", "")
@@ -640,6 +656,7 @@ def get_cik_from_ticker_us(ticker: str) -> str | None:
         return None
     except Exception:
         return None
+
 
 def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFrame:
     if form_types is None:
@@ -660,7 +677,10 @@ def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFram
             if f not in form_types:
                 continue
             accession_clean = a.replace("-", "")
-            filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_clean}/{doc}"
+            filing_url = (
+                f"https://www.sec.gov/Archives/edgar/data/"
+                f"{int(cik)}/{accession_clean}/{doc}"
+            )
             rows.append({
                 "Regulador": "SEC",
                 "CIK": cik,
@@ -676,10 +696,46 @@ def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFram
     except Exception:
         return pd.DataFrame()
 
+
 def get_cnmv_filings_for_spanish_issuer(ticker_base: str) -> pd.DataFrame:
-    # Aquí dentro es donde llamarías a la API de informes financieros/anuales de la CNMV
-    # y construirías un DataFrame con columnas Regualdor, Formulario, Fecha, Documento, URL.
+    # Placeholder: aquí conectarías con la API de la CNMV
     return pd.DataFrame()
+
+
+# =========================
+# PDF HELPER (WeasyPrint)
+# =========================
+
+def html_to_pdf_bytes(html_content: str, base_url: str):
+    """
+    Convierte HTML a bytes PDF con WeasyPrint.
+
+    - base_url: URL de origen, necesaria para resolver rutas relativas de
+      CSS e imágenes (crítico en documentos de la SEC).
+    - Devuelve bytes del PDF, o None si la conversión falla.
+    """
+    try:
+        from weasyprint import HTML as WeasyHTML
+
+        pdf_buffer = io.BytesIO()
+        WeasyHTML(string=html_content, base_url=base_url).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
+        return pdf_buffer.read()
+    except ImportError:
+        st.error(
+            "WeasyPrint no está instalado. "
+            "Ejecuta `pip install weasyprint` y asegúrate de tener las "
+            "dependencias del sistema (libpango, libharfbuzz, etc.)."
+        )
+        return None
+    except Exception as e:
+        st.warning(
+            f"La conversión automática a PDF falló "
+            f"(documento muy extenso o CSS incompatible). "
+            f"Detalle técnico: {e}"
+        )
+        return None
+
 
 # =========================
 # VALORACIÓN
@@ -923,6 +979,7 @@ def compute_valuations(info, currency):
 
     return methods, price
 
+
 # =========================
 # HEADER + LANGUAGE
 # =========================
@@ -1069,7 +1126,7 @@ with k4:
 returns = None
 
 # =========================
-# TABS (incluye "informes")
+# TABS
 # =========================
 tab_emp, tab_rat, tab_val, tab_bench, tab_corr, tab_price, tab_port, tab_fin, tab_filings = st.tabs(
     [T["company"], T["ratios"], T["valuation"], T["benchmarks"], T["correlations"], T["price"], T["portfolio"], T["financials"], "Informes"]
@@ -1186,7 +1243,6 @@ with tab_rat:
         font=dict(color=TEXT_PRIMARY),
     )
     st.plotly_chart(fig_radar, use_container_width=True)
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------- TAB VALORACIÓN --------
@@ -1233,12 +1289,10 @@ with tab_val:
                 base = 2
             else:
                 base = 1
-
             if cal in ["Alta", "High"]:
                 base = min(base + 1, 5)
             elif cal in ["Baja", "Low"]:
                 base = max(base - 1, 1)
-
             return "★" * base + "☆" * (5 - base)
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
@@ -1292,7 +1346,6 @@ with tab_val:
                     st.markdown(f"**{T['intrinsic_value']}:** {row['Valor']:.2f} {currency}")
                     st.markdown(f"**{T['upside']}:** {row['Upside %']:+.1f}%" if pd.notna(row["Upside %"]) else f"**{T['upside']}:** N/A")
                     st.markdown(f"**{T['interpretation']}:** {row['Interpretación']}")
-
                 st.markdown(f"**{T['used']}:** {row['Qué se usó']}")
                 st.markdown(f"**{T['explanation']}:** {row['Detalle']}")
 
@@ -1585,7 +1638,7 @@ with tab_fin:
             st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- TAB INFORMES (SEC / CNMV) --------
+# -------- TAB INFORMES (SEC / CNMV) — con descarga PDF --------
 with tab_filings:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader("Informes Regulatorios")
@@ -1593,7 +1646,7 @@ with tab_filings:
     ticker_base = active_ticker.split(".")[0].upper()
     df_all = []
 
-    # SEC: si parece ticker USA (sin sufijo tipo .MC, .L, etc.)
+    # SEC: tickers sin sufijo de mercado (USA)
     if "." not in active_ticker or active_ticker.endswith(".US"):
         cik = get_cik_from_ticker_us(ticker_base)
         if cik:
@@ -1601,7 +1654,7 @@ with tab_filings:
             if not df_sec.empty:
                 df_all.append(df_sec)
 
-    # CNMV: si es ticker español .MC
+    # CNMV: tickers españoles (.MC)
     if active_ticker.endswith(".MC"):
         df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
         if df_cnmv is not None and not df_cnmv.empty:
@@ -1610,7 +1663,7 @@ with tab_filings:
     if df_all:
         df_filings = pd.concat(df_all, ignore_index=True)
 
-        # Ordenar por fecha (descendente)
+        # Ordenar por fecha descendente
         if "Fecha" in df_filings.columns:
             try:
                 df_filings["Fecha"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
@@ -1619,56 +1672,179 @@ with tab_filings:
             except Exception:
                 pass
 
-        # Mostrar tabla resumen
+        # Tabla resumen
         render_champagne_table(df_filings)
-        
+
         st.markdown("---")
-        st.markdown("### Visor de Documentos")
-        
+        st.markdown("### Visor y Descarga de Documentos")
+
         # Selector de informe
         opciones = df_filings.apply(
             lambda r: f"{r['Fecha']} | {r['Regulador']} | {r['Formulario']}", axis=1
         ).tolist()
-        
-        informe_seleccionado = st.selectbox("Selecciona un informe para visualizar:", opciones)
+
+        informe_seleccionado = st.selectbox(
+            "Selecciona un informe:", opciones, key="filing_selector"
+        )
         idx = opciones.index(informe_seleccionado)
         fila = df_filings.iloc[idx]
         url_doc = fila["URL"]
-        
+
+        # Enlace externo siempre visible como fallback
         st.markdown(f"🔗 **[Abrir documento original en el navegador]({url_doc})**")
 
-        if st.button("Cargar y visualizar aquí", type="primary"):
-            with st.spinner("Descargando y procesando el documento..."):
+        # ── Clave de estado para persistir el PDF entre reruns de Streamlit ──
+        # Streamlit re-ejecuta el script completo en cada interacción, así que
+        # guardamos los bytes en session_state para no regenerar el PDF cada
+        # vez que el usuario mueve otro widget.
+        pdf_state_key = f"pdf_bytes_{idx}"
+        pdf_name_key = f"pdf_name_{idx}"
+
+        col_btn1, col_btn2 = st.columns([1, 3])
+
+        with col_btn1:
+            generar = st.button(
+                "⚙️ Generar PDF",
+                key=f"gen_pdf_{idx}",
+                type="primary",
+                help=(
+                    "Descarga el documento y lo convierte a PDF. "
+                    "Puede tardar 15–30 s en informes extensos."
+                ),
+            )
+
+        if generar:
+            with st.spinner(
+                "Descargando documento y convirtiendo a PDF… puede tardar unos segundos."
+            ):
                 try:
-                    # Descargamos el archivo haciéndonos pasar por un navegador/usuario
-                    resp = requests.get(url_doc, headers=SEC_HEADERS, timeout=15)
+                    # Usamos SEC_HEADERS_WWW para URLs fuera de data.sec.gov
+                    headers_dl = (
+                        SEC_HEADERS
+                        if "data.sec.gov" in url_doc
+                        else SEC_HEADERS_WWW
+                    )
+                    resp = requests.get(url_doc, headers=headers_dl, timeout=30)
                     resp.raise_for_status()
-                    
+
                     content_type = resp.headers.get("Content-Type", "").lower()
-                    
-                    # Si el documento es un PDF (Típico en CNMV)
-                    if "application/pdf" in content_type or url_doc.lower().endswith(".pdf"):
-                        b64_pdf = base64.b64encode(resp.content).decode("utf-8")
-                        pdf_html = f'''
-                            <iframe src="data:application/pdf;base64,{b64_pdf}" 
-                                    width="100%" 
-                                    height="800px" 
-                                    style="border: 1px solid #D9C8B4; border-radius: 8px;">
-                            </iframe>
-                        '''
-                        st.markdown(pdf_html, unsafe_allow_html=True)
-                        
-                    # Si el documento es HTML (Típico en la SEC)
+                    es_pdf_nativo = (
+                        "application/pdf" in content_type
+                        or url_doc.lower().endswith(".pdf")
+                    )
+
+                    if es_pdf_nativo:
+                        # PDF binario nativo (habitual en CNMV)
+                        st.session_state[pdf_state_key] = resp.content
+                        st.session_state[pdf_name_key] = (
+                            f"{ticker_base}_{fila['Formulario']}_{fila['Fecha']}.pdf"
+                        )
+                        st.success("✅ PDF nativo descargado correctamente.")
+
                     else:
-                        st.info("Nota: Este informe es un documento HTML interactivo (estándar de la SEC).")
-                        # Modificamos el HTML base para adaptar rutas relativas si las hubiera
-                        html_content = resp.text.replace('src="/', 'src="https://www.sec.gov/')
-                        components.html(html_content, height=800, scrolling=True)
-                        
+                        # HTML de la SEC → convertir con WeasyPrint
+                        # base_url resuelve rutas relativas de CSS/imágenes
+                        base_url = url_doc.rsplit("/", 1)[0] + "/"
+                        html_content = resp.text
+
+                        # Inyectamos CSS mínimo para mejorar legibilidad del PDF.
+                        # Lo insertamos antes de </head>; si no hay <head>, al inicio.
+                        style_override = """
+                        <style>
+                            @page { margin: 1.8cm 2cm; }
+                            body {
+                                font-family: "Helvetica Neue", Arial, sans-serif;
+                                font-size: 10pt;
+                                color: #111;
+                                line-height: 1.5;
+                            }
+                            table {
+                                border-collapse: collapse;
+                                width: 100%;
+                                margin-bottom: 1rem;
+                            }
+                            th, td {
+                                border: 1px solid #ccc;
+                                padding: 4px 7px;
+                                font-size: 9pt;
+                                text-align: left;
+                                vertical-align: top;
+                            }
+                            th { background: #f2f2f2; font-weight: bold; }
+                            a  { color: #0055aa; text-decoration: none; }
+                            h1, h2, h3 { color: #1a1a1a; }
+                            img { max-width: 100%; height: auto; }
+                        </style>
+                        """
+                        if "</head>" in html_content:
+                            html_content = html_content.replace(
+                                "</head>", f"{style_override}</head>", 1
+                            )
+                        else:
+                            html_content = style_override + html_content
+
+                        pdf_bytes = html_to_pdf_bytes(html_content, base_url=base_url)
+
+                        if pdf_bytes:
+                            st.session_state[pdf_state_key] = pdf_bytes
+                            st.session_state[pdf_name_key] = (
+                                f"{ticker_base}_{fila['Formulario']}_{fila['Fecha']}.pdf"
+                            )
+                            st.success("✅ PDF generado correctamente.")
+                        # Si pdf_bytes es None, html_to_pdf_bytes ya emitió st.warning
+
+                except requests.exceptions.Timeout:
+                    st.error(
+                        "⏱️ Tiempo de espera agotado al descargar el documento. "
+                        "La SEC puede estar lenta. Inténtalo de nuevo en unos momentos."
+                    )
+                except requests.exceptions.HTTPError as e:
+                    st.error(
+                        f"❌ Error HTTP al acceder al documento: {e}. "
+                        "Puede que el informe haya sido movido o que la SEC requiera "
+                        "otro User-Agent. Usa el enlace directo como alternativa."
+                    )
                 except Exception as e:
-                    st.error(f"No se pudo cargar el documento de forma integrada. Error: {e}")
+                    st.error(f"❌ Error inesperado: {e}")
+
+        # ── Botón de descarga: solo aparece cuando el PDF está listo ──
+        # Separamos generación y descarga para evitar el bucle de rerun
+        # que causaría tener ambas acciones en un único botón.
+        if pdf_state_key in st.session_state and st.session_state[pdf_state_key]:
+            with col_btn2:
+                st.download_button(
+                    label="⬇️ Descargar PDF",
+                    data=st.session_state[pdf_state_key],
+                    file_name=st.session_state.get(
+                        pdf_name_key,
+                        f"{ticker_base}_informe.pdf"
+                    ),
+                    mime="application/pdf",
+                    key=f"dl_pdf_{idx}",
+                )
+
+            # Vista previa inline del PDF generado
+            st.markdown("#### Vista previa del documento")
+            b64_pdf = base64.b64encode(
+                st.session_state[pdf_state_key]
+            ).decode("utf-8")
+            pdf_html = f"""
+                <iframe
+                    src="data:application/pdf;base64,{b64_pdf}"
+                    width="100%"
+                    height="840px"
+                    style="border: 1px solid #D9C8B4;
+                           border-radius: 10px;
+                           margin-top: 0.5rem;
+                           box-shadow: 0 8px 24px rgba(120,93,61,0.08);">
+                </iframe>
+            """
+            st.markdown(pdf_html, unsafe_allow_html=True)
 
     else:
-        st.info("No se han encontrado informes regulatorios para este ticker.")
+        st.info(
+            "No se han encontrado informes regulatorios para este ticker. "
+            "Nota: la búsqueda SEC solo funciona con tickers de EE.UU. sin sufijo (ej: AAPL, MSFT)."
+        )
 
     st.markdown('</div>', unsafe_allow_html=True)
