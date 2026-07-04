@@ -14,11 +14,11 @@ from scipy.optimize import minimize
 from deep_translator import GoogleTranslator
 
 # =========================
-# CONFIGURACIÃ“N DE PÃGINA
+# CONFIGURACIÓN DE PÁGINA
 # =========================
 st.set_page_config(
-    page_title="Equity Terminal â€” Value Investing",
-    page_icon="ðŸ“Š",
+    page_title="Equity Terminal — Value Investing",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -66,59 +66,59 @@ CHART_COLORS = ["#B68A52", "#8C6A43", "#5E8B6F", "#A47E5B", "#C2A27B"]
 TEXTS = {
     "ES": {
         "hero_title": "Equity Terminal",
-        "hero_sub": "Value Investing Â· AnÃ¡lisis fundamental de empresas cotizadas",
-        "search_placeholder": "ðŸ”Ž Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
-        "analyze": "Analizar â†’",
+        "hero_sub": "Value Investing · Análisis fundamental de empresas cotizadas",
+        "search_placeholder": "🔍 Busca una empresa o ticker (ej: Apple, AAPL, Stellantis, TEF.MC...)",
+        "analyze": "Analizar →",
         "suggestions": "Sugerencias",
-        "options": "âš™ï¸ Opciones de anÃ¡lisis",
-        "period": "PerÃ­odo histÃ³rico",
-        "corr_input": "Tickers para correlaciÃ³n y cartera (separados por comas)",
-        "welcome_1": "Introduce el nombre o ticker de una empresa y pulsa Analizar â†’",
-        "welcome_2": "Ejemplos: Apple Â· MSFT Â· Stellantis Â· TEF.MC Â· SAN.MC Â· Inditex",
+        "options": "⚙️ Opciones de análisis",
+        "period": "Período histórico",
+        "corr_input": "Tickers para correlación y cartera (separados por comas)",
+        "welcome_1": "Introduce el nombre o ticker de una empresa y pulsa Analizar →",
+        "welcome_2": "Ejemplos: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
         "loading": "Cargando datos de",
         "price_error": "No se pudo obtener el precio de mercado. Verifica el ticker.",
         "company": "Empresa",
         "ratios": "Ratios",
-        "valuation": "ValoraciÃ³n",
+        "valuation": "Valoración",
         "benchmarks": "Benchmarks",
         "correlations": "Correlaciones",
         "price": "Precio",
-        "portfolio": "OptimizaciÃ³n de Cartera",
+        "portfolio": "Optimización de Cartera",
         "financials": "Estados financieros",
-        "description": "DescripciÃ³n",
+        "description": "Descripción",
         "corp_data": "Datos corporativos",
-        "country": "PaÃ­s",
+        "country": "País",
         "city": "Ciudad",
         "exchange": "Exchange",
         "employees": "Empleados",
         "sector": "Sector",
         "industry": "Industria",
         "market_cap": "Market Cap",
-        "high_52": "52W MÃ¡x",
-        "low_52": "52W MÃ­n",
+        "high_52": "52W Máx",
+        "low_52": "52W Mín",
         "beta": "Beta",
-        "market_val": "ValoraciÃ³n de mercado",
+        "market_val": "Valoración de mercado",
         "profitability": "Rentabilidad",
         "risk_liq": "Riesgo y liquidez",
         "financial_profile": "Perfil financiero (radar)",
-        "intrinsic_title": "ValoraciÃ³n intrÃ­nseca â€” todos los mÃ©todos",
+        "intrinsic_title": "Valoración intrínseca — todos los métodos",
         "valuation_warn": "No se pudieron calcular valoraciones por falta de datos.",
-        "bench_title": "ComparaciÃ³n con benchmarks del sector",
+        "bench_title": "Comparación con benchmarks del sector",
         "bench_warn": "No se pudieron cargar datos de benchmarks.",
         "bench_none": "No hay benchmarks definidos para este sector.",
-        "corr_title": "CorrelaciÃ³n de rentabilidades",
-        "corr_matrix": "Matriz de correlaciÃ³n",
+        "corr_title": "Correlación de rentabilidades",
+        "corr_matrix": "Matriz de correlación",
         "cum_returns": "Retornos acumulados",
-        "price_hist": "HistÃ³rico de precio y volumen",
-        "price_hist_warn": "No hay datos histÃ³ricos disponibles.",
-        "portfolio_title": "OptimizaciÃ³n de Cartera de Markowitz",
-        "portfolio_warn": "Datos histÃ³ricos insuficientes. AsegÃºrate de configurar los tickers correctamente en las opciones superiores.",
-        "portfolio_cfg": "Configura las variables para optimizar tu selecciÃ³n actual de activos:",
+        "price_hist": "Histórico de precio y volumen",
+        "price_hist_warn": "No hay datos históricos disponibles.",
+        "portfolio_title": "Optimización de Cartera de Markowitz",
+        "portfolio_warn": "Datos históricos insuficientes. Asegúrate de configurar los tickers correctamente en las opciones superiores.",
+        "portfolio_cfg": "Configura las variables para optimizar tu selección actual de activos:",
         "optimizer_goal": "Objetivo del Optimizador",
         "goal_sharpe": "Maximizar Ratio Sharpe (Eficiencia)",
-        "goal_var": "Minimizar Varianza (MÃ­nimo Riesgo)",
+        "goal_var": "Minimizar Varianza (Mínimo Riesgo)",
         "rf_rate": "Tasa libre de riesgo anualizada (%)",
-        "portfolio_metrics": "MÃ©tricas de la Cartera Ã“ptima",
+        "portfolio_metrics": "Métricas de la Cartera Óptima",
         "exp_return": "Retorno Esperado Anual",
         "volatility": "Volatilidad de la Cartera",
         "sharpe": "Ratio Sharpe Resultante",
@@ -127,29 +127,29 @@ TEXTS = {
         "balance_sheet": "Balance",
         "cash_flow": "Flujo de caja",
         "no_data": "No hay datos disponibles.",
-        "detail_methods": "Detalle de cada mÃ©todo",
-        "used": "QuÃ© se usÃ³",
-        "explanation": "ExplicaciÃ³n",
+        "detail_methods": "Detalle de cada método",
+        "used": "Qué se usó",
+        "explanation": "Explicación",
         "type": "Tipo",
         "quality": "Calidad",
         "current_price": "Precio actual",
-        "intrinsic_value": "Valor intrÃ­nseco",
+        "intrinsic_value": "Valor intrínseco",
         "upside": "Upside",
-        "interpretation": "InterpretaciÃ³n",
+        "interpretation": "Interpretación",
         "language": "Idioma",
         "score": "Score",
     },
     "EN": {
         "hero_title": "Equity Terminal",
-        "hero_sub": "Value Investing Â· Fundamental analysis of listed companies",
-        "search_placeholder": "ðŸ”Ž Search a company or ticker (e.g. Apple, AAPL, Stellantis, TEF.MC...)",
-        "analyze": "Analyze â†’",
+        "hero_sub": "Value Investing · Fundamental analysis of listed companies",
+        "search_placeholder": "🔍 Search a company or ticker (e.g. Apple, AAPL, Stellantis, TEF.MC...)",
+        "analyze": "Analyze →",
         "suggestions": "Suggestions",
-        "options": "âš™ï¸ Analysis options",
+        "options": "⚙️ Analysis options",
         "period": "Historical period",
         "corr_input": "Tickers for correlation and portfolio (comma separated)",
-        "welcome_1": "Enter a company name or ticker and press Analyze â†’",
-        "welcome_2": "Examples: Apple Â· MSFT Â· Stellantis Â· TEF.MC Â· SAN.MC Â· Inditex",
+        "welcome_1": "Enter a company name or ticker and press Analyze →",
+        "welcome_2": "Examples: Apple · MSFT · Stellantis · TEF.MC · SAN.MC · Inditex",
         "loading": "Loading data for",
         "price_error": "Could not retrieve market price. Check the ticker.",
         "company": "Company",
@@ -176,7 +176,7 @@ TEXTS = {
         "profitability": "Profitability",
         "risk_liq": "Risk and liquidity",
         "financial_profile": "Financial profile (radar)",
-        "intrinsic_title": "Intrinsic valuation â€” all methods",
+        "intrinsic_title": "Intrinsic valuation — all methods",
         "valuation_warn": "Valuation methods could not be calculated due to missing data.",
         "bench_title": "Sector benchmark comparison",
         "bench_warn": "Benchmark data could not be loaded.",
@@ -529,7 +529,7 @@ def render_company_header(company_name, ticker, sector, industry, currency, pric
         f"""
         <div class="company-header fade-container">
             <div class="company-name">{company_name}</div>
-            <div class="company-meta">{ticker} Â· {sector} Â· {industry} Â· {currency}</div>
+            <div class="company-meta">{ticker} · {sector} · {industry} · {currency}</div>
             <div class="company-price">{price:.2f} {currency} {delta_html}</div>
         </div>
         """,
@@ -585,7 +585,7 @@ def search_ticker(query: str):
             symbol = q.get("symbol", "")
             name = q.get("longname") or q.get("shortname", "")
             exch = q.get("exchDisp", "")
-            results.append(f"{symbol} â€” {name} ({exch})")
+            results.append(f"{symbol} — {name} ({exch})")
         return results
     except Exception:
         return []
@@ -698,7 +698,7 @@ def get_sec_filings_metadata(cik: str, form_types=None, limit=25) -> pd.DataFram
 
 
 def get_cnmv_filings_for_spanish_issuer(ticker_base: str) -> pd.DataFrame:
-    # Placeholder: aquÃ­ conectarÃ­as con la API de la CNMV
+    # Placeholder: aquí conectarías con la API de la CNMV
     return pd.DataFrame()
 
 
@@ -711,8 +711,8 @@ def html_to_pdf_bytes(html_content: str, base_url: str):
     Convierte HTML a bytes PDF con WeasyPrint.
 
     - base_url: URL de origen, necesaria para resolver rutas relativas de
-      CSS e imÃ¡genes (crÃ­tico en documentos de la SEC).
-    - Devuelve bytes del PDF, o None si la conversiÃ³n falla.
+      CSS e imágenes (crítico en documentos de la SEC).
+    - Devuelve bytes del PDF, o None si la conversión falla.
     """
     try:
         from weasyprint import HTML as WeasyHTML
@@ -723,22 +723,22 @@ def html_to_pdf_bytes(html_content: str, base_url: str):
         return pdf_buffer.read()
     except ImportError:
         st.error(
-            "WeasyPrint no estÃ¡ instalado. "
-            "Ejecuta `pip install weasyprint` y asegÃºrate de tener las "
+            "WeasyPrint no está instalado. "
+            "Ejecuta `pip install weasyprint` y asegúrate de tener las "
             "dependencias del sistema (libpango, libharfbuzz, etc.)."
         )
         return None
     except Exception as e:
         st.warning(
-            f"La conversiÃ³n automÃ¡tica a PDF fallÃ³ "
+            f"La conversión automática a PDF falló "
             f"(documento muy extenso o CSS incompatible). "
-            f"Detalle tÃ©cnico: {e}"
+            f"Detalle técnico: {e}"
         )
         return None
 
 
 # =========================
-# VALORACIÃ“N
+# VALORACIÓN
 # =========================
 def compute_valuations(info, currency):
     methods = []
@@ -775,11 +775,11 @@ def compute_valuations(info, currency):
         if lang == "ES":
             detalle = (
                 f"Se parte de {origen} actual ({fmt_large(fcf0)}), se proyecta con crecimiento del "
-                f"{g_high*100:.0f}% durante 5 aÃ±os, despuÃ©s del {g_low*100:.0f}% durante otros 5 aÃ±os, "
-                f"y todo se descuenta a una tasa del {r*100:.0f}%. Luego se aÃ±ade la caja, se resta la deuda "
-                f"y se divide entre el nÃºmero de acciones."
+                f"{g_high*100:.0f}% durante 5 años, después del {g_low*100:.0f}% durante otros 5 años, "
+                f"y todo se descuenta a una tasa del {r*100:.0f}%. Luego se añade la caja, se resta la deuda "
+                f"y se divide entre el número de acciones."
             )
-            usado = f"{origen} Â· crecimiento {g_high*100:.0f}% â†’ {g_low*100:.0f}% Â· descuento {r*100:.0f}%"
+            usado = f"{origen} · crecimiento {g_high*100:.0f}% → {g_low*100:.0f}% · descuento {r*100:.0f}%"
         else:
             detalle = (
                 f"It starts from current {origen} ({fmt_large(fcf0)}), projects growth at "
@@ -787,14 +787,14 @@ def compute_valuations(info, currency):
                 f"and discounts everything at {r*100:.0f}%. Then cash is added, debt is subtracted, "
                 f"and the result is divided by shares outstanding."
             )
-            usado = f"{origen} Â· growth {g_high*100:.0f}% â†’ {g_low*100:.0f}% Â· discount {r*100:.0f}%"
+            usado = f"{origen} · growth {g_high*100:.0f}% → {g_low*100:.0f}% · discount {r*100:.0f}%"
 
         methods.append({
-            "MÃ©todo": label,
+            "Método": label,
             "Tipo": "DCF",
             "Calidad": calidad if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(calidad, calidad),
             "Valor": valor_accion,
-            "QuÃ© se usÃ³": usado,
+            "Qué se usó": usado,
             "Detalle": detalle,
         })
 
@@ -804,25 +804,25 @@ def compute_valuations(info, currency):
         dcf_model(fcf, 0.06, 0.02, 0.09, "DCF Conservador" if lang == "ES" else "Conservative DCF", "Alta", "flujo de caja libre" if lang == "ES" else "free cash flow")
 
     if net_income is not None and shares and shares > 0:
-        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (BÂº neto proxy)" if lang == "ES" else "DCF (Net income proxy)", "Media", "beneficio neto" if lang == "ES" else "net income")
+        dcf_model(net_income, 0.08, 0.03, 0.10, "DCF (Bº neto proxy)" if lang == "ES" else "DCF (Net income proxy)", "Media", "beneficio neto" if lang == "ES" else "net income")
 
     if ebitda is not None and ebitda > 0 and shares and shares > 0:
         for mult, cal in [(8, "Alta"), (10, "Alta"), (12, "Media"), (15, "Media"), (20, "Baja")]:
             ev = ebitda * mult
             valor_accion = (ev + cash - total_debt) / shares
             detalle = (
-                f"Se toma el EBITDA ({fmt_large(ebitda)}) y se multiplica por {mult}Ã— para estimar el valor empresa. "
-                f"DespuÃ©s se suma la caja, se resta la deuda y se divide entre las acciones en circulaciÃ³n."
+                f"Se toma el EBITDA ({fmt_large(ebitda)}) y se multiplica por {mult}× para estimar el valor empresa. "
+                f"Después se suma la caja, se resta la deuda y se divide entre las acciones en circulación."
                 if lang == "ES" else
-                f"EBITDA ({fmt_large(ebitda)}) is multiplied by {mult}Ã— to estimate enterprise value. "
+                f"EBITDA ({fmt_large(ebitda)}) is multiplied by {mult}× to estimate enterprise value. "
                 f"Then cash is added, debt is subtracted, and the result is divided by shares outstanding."
             )
             methods.append({
-                "MÃ©todo": f"EV/EBITDA {mult}Ã—",
-                "Tipo": "MÃºltiplo" if lang == "ES" else "Multiple",
+                "Método": f"EV/EBITDA {mult}×",
+                "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "QuÃ© se usÃ³": f"EBITDA Ã— {mult}",
+                "Qué se usó": f"EBITDA × {mult}",
                 "Detalle": detalle,
             })
 
@@ -831,40 +831,40 @@ def compute_valuations(info, currency):
             ev = ebit * mult
             valor_accion = (ev + cash - total_debt) / shares
             detalle = (
-                f"Se toma el EBIT ({fmt_large(ebit)}) y se multiplica por {mult}Ã— para obtener el valor empresa. "
-                f"Luego se ajusta por caja y deuda, y se divide entre el nÃºmero de acciones."
+                f"Se toma el EBIT ({fmt_large(ebit)}) y se multiplica por {mult}× para obtener el valor empresa. "
+                f"Luego se ajusta por caja y deuda, y se divide entre el número de acciones."
                 if lang == "ES" else
-                f"EBIT ({fmt_large(ebit)}) is multiplied by {mult}Ã— to estimate enterprise value. "
+                f"EBIT ({fmt_large(ebit)}) is multiplied by {mult}× to estimate enterprise value. "
                 f"Then cash and debt adjustments are applied and divided by shares outstanding."
             )
             methods.append({
-                "MÃ©todo": f"EV/EBIT {mult}Ã—",
-                "Tipo": "MÃºltiplo" if lang == "ES" else "Multiple",
+                "Método": f"EV/EBIT {mult}×",
+                "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "QuÃ© se usÃ³": f"EBIT Ã— {mult}",
+                "Qué se usó": f"EBIT × {mult}",
                 "Detalle": detalle,
             })
 
     eps_use = eps if (eps and eps > 0) else fwd_eps
-    eps_origen = ("BPA histÃ³rico" if lang == "ES" else "Historical EPS") if (eps and eps > 0) else ("BPA estimado" if lang == "ES" else "Forward EPS")
+    eps_origen = ("BPA histórico" if lang == "ES" else "Historical EPS") if (eps and eps > 0) else ("BPA estimado" if lang == "ES" else "Forward EPS")
 
     if eps_use and eps_use > 0:
         for mult, cal in [(10, "Alta"), (15, "Alta"), (20, "Media"), (25, "Media"), (30, "Baja")]:
             valor_accion = eps_use * mult
             detalle = (
-                f"Se usa el {eps_origen.lower()} por acciÃ³n ({eps_use:.2f}) y se multiplica por un PER objetivo de {mult}Ã—. "
-                f"AsÃ­ se obtiene un precio razonable por acciÃ³n segÃºn ese mÃºltiplo."
+                f"Se usa el {eps_origen.lower()} por acción ({eps_use:.2f}) y se multiplica por un PER objetivo de {mult}×. "
+                f"Así se obtiene un precio razonable por acción según ese múltiplo."
                 if lang == "ES" else
-                f"The {eps_origen.lower()} ({eps_use:.2f}) is multiplied by a target P/E of {mult}Ã—. "
+                f"The {eps_origen.lower()} ({eps_use:.2f}) is multiplied by a target P/E of {mult}×. "
                 f"This gives an estimated fair value per share under that multiple."
             )
             methods.append({
-                "MÃ©todo": f"P/E {mult}Ã—",
-                "Tipo": "MÃºltiplo" if lang == "ES" else "Multiple",
+                "Método": f"P/E {mult}×",
+                "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "QuÃ© se usÃ³": f"{eps_origen} Ã— {mult}",
+                "Qué se usó": f"{eps_origen} × {mult}",
                 "Detalle": detalle,
             })
 
@@ -872,18 +872,18 @@ def compute_valuations(info, currency):
         for mult, cal in [(1, "Alta"), (2, "Alta"), (4, "Media"), (6, "Media"), (8, "Baja")]:
             valor_accion = revenue * mult / shares
             detalle = (
-                f"Se toman las ventas totales ({fmt_large(revenue)}) y se multiplican por {mult}Ã—. "
-                f"El resultado se divide entre las acciones para obtener un valor aproximado por acciÃ³n."
+                f"Se toman las ventas totales ({fmt_large(revenue)}) y se multiplican por {mult}×. "
+                f"El resultado se divide entre las acciones para obtener un valor aproximado por acción."
                 if lang == "ES" else
-                f"Total revenue ({fmt_large(revenue)}) is multiplied by {mult}Ã—, and the result is divided by "
+                f"Total revenue ({fmt_large(revenue)}) is multiplied by {mult}×, and the result is divided by "
                 f"shares outstanding to estimate a value per share."
             )
             methods.append({
-                "MÃ©todo": f"P/Ventas {mult}Ã—" if lang == "ES" else f"P/Sales {mult}Ã—",
-                "Tipo": "MÃºltiplo" if lang == "ES" else "Multiple",
+                "Método": f"P/Ventas {mult}×" if lang == "ES" else f"P/Sales {mult}×",
+                "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "QuÃ© se usÃ³": f"Ventas Ã— {mult} Ã· acciones" if lang == "ES" else f"Sales Ã— {mult} Ã· shares",
+                "Qué se usó": f"Ventas × {mult} ÷ acciones" if lang == "ES" else f"Sales × {mult} ÷ shares",
                 "Detalle": detalle,
             })
 
@@ -891,53 +891,53 @@ def compute_valuations(info, currency):
         for mult, cal in [(1, "Alta"), (1.5, "Alta"), (2, "Media"), (3, "Media"), (4, "Baja")]:
             valor_accion = bvps * mult
             detalle = (
-                f"Se usa el valor en libros por acciÃ³n ({bvps:.2f}) y se multiplica por {mult}Ã—. "
-                f"Es una forma de valorar cuÃ¡nto pagar por cada unidad de patrimonio neto por acciÃ³n."
+                f"Se usa el valor en libros por acción ({bvps:.2f}) y se multiplica por {mult}×. "
+                f"Es una forma de valorar cuánto pagar por cada unidad de patrimonio neto por acción."
                 if lang == "ES" else
-                f"Book value per share ({bvps:.2f}) is multiplied by {mult}Ã—. "
+                f"Book value per share ({bvps:.2f}) is multiplied by {mult}×. "
                 f"It estimates how much to pay for each unit of equity per share."
             )
             methods.append({
-                "MÃ©todo": f"P/Valor Libros {mult}Ã—" if lang == "ES" else f"P/Book {mult}Ã—",
-                "Tipo": "MÃºltiplo" if lang == "ES" else "Multiple",
+                "Método": f"P/Valor Libros {mult}×" if lang == "ES" else f"P/Book {mult}×",
+                "Tipo": "Múltiplo" if lang == "ES" else "Multiple",
                 "Calidad": cal if lang == "ES" else {"Alta": "High", "Media": "Medium", "Baja": "Low"}.get(cal, cal),
                 "Valor": valor_accion,
-                "QuÃ© se usÃ³": f"{'Valor en libros por acciÃ³n' if lang == 'ES' else 'Book value per share'} Ã— {mult}",
+                "Qué se usó": f"{'Valor en libros por acción' if lang == 'ES' else 'Book value per share'} × {mult}",
                 "Detalle": detalle,
             })
 
     if eps_use and eps_use > 0 and bvps and bvps > 0:
         graham = math.sqrt(22.5 * eps_use * bvps)
         detalle = (
-            f"Se combina el beneficio por acciÃ³n ({eps_use:.2f}) con el valor en libros por acciÃ³n ({bvps:.2f}). "
-            f"Se multiplican ambos por 22.5 y luego se aplica una raÃ­z cuadrada: âˆš(22.5 Ã— BPA Ã— valor en libros por acciÃ³n)."
+            f"Se combina el beneficio por acción ({eps_use:.2f}) con el valor en libros por acción ({bvps:.2f}). "
+            f"Se multiplican ambos por 22.5 y luego se aplica una raíz cuadrada: √(22.5 × BPA × valor en libros por acción)."
             if lang == "ES" else
             f"Earnings per share ({eps_use:.2f}) and book value per share ({bvps:.2f}) are combined. "
-            f"Both are multiplied by 22.5 and then a square root is applied: âˆš(22.5 Ã— EPS Ã— book value per share)."
+            f"Both are multiplied by 22.5 and then a square root is applied: √(22.5 × EPS × book value per share)."
         )
         methods.append({
-            "MÃ©todo": "Graham Number",
+            "Método": "Graham Number",
             "Tipo": "Mixto" if lang == "ES" else "Hybrid",
             "Calidad": "Alta" if lang == "ES" else "High",
             "Valor": graham,
-            "QuÃ© se usÃ³": "âˆš(22.5 Ã— BPA Ã— valor en libros por acciÃ³n)" if lang == "ES" else "âˆš(22.5 Ã— EPS Ã— book value per share)",
+            "Qué se usó": "√(22.5 × BPA × valor en libros por acción)" if lang == "ES" else "√(22.5 × EPS × book value per share)",
             "Detalle": detalle,
         })
 
         graham_adj = math.sqrt(15 * eps_use * bvps)
         detalle_adj = (
-            f"Es una versiÃ³n mÃ¡s prudente del mÃ©todo Graham. Se usa âˆš(15 Ã— BPA Ã— valor en libros por acciÃ³n), "
+            f"Es una versión más prudente del método Graham. Se usa √(15 × BPA × valor en libros por acción), "
             f"reduciendo el factor desde 22.5 hasta 15."
             if lang == "ES" else
-            f"This is a more conservative Graham version. It uses âˆš(15 Ã— EPS Ã— book value per share), "
+            f"This is a more conservative Graham version. It uses √(15 × EPS × book value per share), "
             f"reducing the factor from 22.5 to 15."
         )
         methods.append({
-            "MÃ©todo": "Graham Ajustado (15Ã—)" if lang == "ES" else "Adjusted Graham (15Ã—)",
+            "Método": "Graham Ajustado (15×)" if lang == "ES" else "Adjusted Graham (15×)",
             "Tipo": "Mixto" if lang == "ES" else "Hybrid",
             "Calidad": "Media" if lang == "ES" else "Medium",
             "Valor": graham_adj,
-            "QuÃ© se usÃ³": "âˆš(15 Ã— BPA Ã— valor en libros por acciÃ³n)" if lang == "ES" else "âˆš(15 Ã— EPS Ã— book value per share)",
+            "Qué se usó": "√(15 × BPA × valor en libros por acción)" if lang == "ES" else "√(15 × EPS × book value per share)",
             "Detalle": detalle_adj,
         })
 
@@ -950,7 +950,7 @@ def compute_valuations(info, currency):
             if r_div > g_div:
                 val_ddm = div * (1 + g_div) / (r_div - g_div)
                 detalle = (
-                    f"Se toma el dividendo anual por acciÃ³n ({div:.2f}), se aumenta con un crecimiento esperado del "
+                    f"Se toma el dividendo anual por acción ({div:.2f}), se aumenta con un crecimiento esperado del "
                     f"{g_div*100:.0f}%, y se divide entre la diferencia entre la rentabilidad exigida ({r_div*100:.0f}%) "
                     f"y ese crecimiento."
                     if lang == "ES" else
@@ -958,14 +958,14 @@ def compute_valuations(info, currency):
                     f"and divided by the difference between required return ({r_div*100:.0f}%) and growth."
                 )
                 methods.append({
-                    "MÃ©todo": label_div,
+                    "Método": label_div,
                     "Tipo": "DDM",
                     "Calidad": "Media" if lang == "ES" else "Medium",
                     "Valor": val_ddm,
-                    "QuÃ© se usÃ³": (
-                        "Dividendo Ã— (1 + crecimiento) Ã· (rentabilidad exigida âˆ’ crecimiento)"
+                    "Qué se usó": (
+                        "Dividendo × (1 + crecimiento) ÷ (rentabilidad exigida − crecimiento)"
                         if lang == "ES"
-                        else "Dividend Ã— (1 + growth) Ã· (required return âˆ’ growth)"
+                        else "Dividend × (1 + growth) ÷ (required return − growth)"
                     ),
                     "Detalle": detalle,
                 })
@@ -1006,7 +1006,7 @@ st.markdown(
 )
 
 # =========================
-# BÃšSQUEDA
+# BÚSQUEDA
 # =========================
 col_search, col_btn = st.columns([4, 1])
 with col_search:
@@ -1026,7 +1026,7 @@ if query:
     suggestions = search_ticker(query)
     if suggestions:
         choice = st.selectbox(T["suggestions"], suggestions, label_visibility="collapsed", key="ticker_suggestion")
-        ticker_sym = choice.split(" â€” ")[0].strip()
+        ticker_sym = choice.split(" — ")[0].strip()
     else:
         ticker_sym = query.strip().upper()
 
@@ -1057,7 +1057,7 @@ if not st.session_state.analyzed_ticker:
     st.markdown(
         f"""
         <div class="fade-container" style="text-align:center; color:{TEXT_SECONDARY}; padding: 3rem 0;">
-            <div style="font-size:3rem;">ðŸ¦</div>
+            <div style="font-size:3rem;">🏦</div>
             <div style="font-size:1.1rem; margin-top:0.5rem;">
                 {T["welcome_1"]}
             </div>
@@ -1245,7 +1245,7 @@ with tab_rat:
     st.plotly_chart(fig_radar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- TAB VALORACIÃ“N --------
+# -------- TAB VALORACIÓN --------
 with tab_val:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader(T["intrinsic_title"])
@@ -1262,7 +1262,7 @@ with tab_val:
             if lang == "ES":
                 if u >= 40: return "Muy infravalorado"
                 if u >= 20: return "Infravalorado"
-                if u >= -10: return "En lÃ­nea"
+                if u >= -10: return "En línea"
                 if u >= -30: return "Sobrevalorado"
                 return "Muy sobrevalorado"
             else:
@@ -1272,7 +1272,7 @@ with tab_val:
                 if u >= -30: return "Overvalued"
                 return "Deeply overvalued"
 
-        df_val["InterpretaciÃ³n"] = df_val["Upside %"].apply(rango_upside)
+        df_val["Interpretación"] = df_val["Upside %"].apply(rango_upside)
 
         def score_row(row):
             u = row["Upside %"]
@@ -1293,7 +1293,7 @@ with tab_val:
                 base = min(base + 1, 5)
             elif cal in ["Baja", "Low"]:
                 base = max(base - 1, 1)
-            return "â˜…" * base + "â˜†" * (5 - base)
+            return "★" * base + "☆" * (5 - base)
 
         df_val["Score"] = df_val.apply(score_row, axis=1)
 
@@ -1304,15 +1304,15 @@ with tab_val:
             return f"{u:+.1f}%" if pd.notna(u) else "N/A"
 
         df_tabla = pd.DataFrame({
-            "MÃ©todo" if lang == "ES" else "Method": df_val["MÃ©todo"],
+            "Método" if lang == "ES" else "Method": df_val["Método"],
             T["type"]: df_val["Tipo"],
             T["score"]: df_val["Score"],
             "Upside (%)": df_val["Upside %"].apply(fmt_up),
             T["intrinsic_value"]: df_val["Valor"].apply(fmt_val),
             T["current_price"]: df_val["Precio"].apply(fmt_val),
             T["quality"]: df_val["Calidad"],
-            T["interpretation"]: df_val["InterpretaciÃ³n"],
-            T["used"]: df_val["QuÃ© se usÃ³"],
+            T["interpretation"]: df_val["Interpretación"],
+            T["used"]: df_val["Qué se usó"],
         })
 
         df_tabla = df_tabla.reindex(df_val.sort_values("Upside %", ascending=False).index)
@@ -1322,7 +1322,7 @@ with tab_val:
         upsides = df_val["Upside %"].dropna()
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            metric_card("MÃ©todos" if lang == "ES" else "Methods", str(len(df_val)))
+            metric_card("Métodos" if lang == "ES" else "Methods", str(len(df_val)))
         with m2:
             metric_card("Upside mediano" if lang == "ES" else "Median upside", f"{upsides.median():+.1f}%" if len(upsides) else "N/A")
         with m3:
@@ -1335,7 +1335,7 @@ with tab_val:
 
         df_det = df_val.sort_values("Upside %", ascending=False).reset_index(drop=True)
         for _, row in df_det.iterrows():
-            titulo = f"{row['MÃ©todo']} Â· {T['intrinsic_value']}: {row['Valor']:.2f} {currency}"
+            titulo = f"{row['Método']} · {T['intrinsic_value']}: {row['Valor']:.2f} {currency}"
             with st.expander(titulo, expanded=False):
                 c1, c2 = st.columns(2)
                 with c1:
@@ -1345,8 +1345,8 @@ with tab_val:
                 with c2:
                     st.markdown(f"**{T['intrinsic_value']}:** {row['Valor']:.2f} {currency}")
                     st.markdown(f"**{T['upside']}:** {row['Upside %']:+.1f}%" if pd.notna(row["Upside %"]) else f"**{T['upside']}:** N/A")
-                    st.markdown(f"**{T['interpretation']}:** {row['InterpretaciÃ³n']}")
-                st.markdown(f"**{T['used']}:** {row['QuÃ© se usÃ³']}")
+                    st.markdown(f"**{T['interpretation']}:** {row['Interpretación']}")
+                st.markdown(f"**{T['used']}:** {row['Qué se usó']}")
                 st.markdown(f"**{T['explanation']}:** {row['Detalle']}")
 
         fig_val = px.strip(
@@ -1354,8 +1354,8 @@ with tab_val:
             x="Upside %",
             y="Tipo",
             color="Tipo",
-            hover_data=["MÃ©todo", "Valor", "QuÃ© se usÃ³"],
-            title="DistribuciÃ³n de upside por tipo de mÃ©todo" if lang == "ES" else "Upside distribution by valuation type",
+            hover_data=["Método", "Valor", "Qué se usó"],
+            title="Distribución de upside por tipo de método" if lang == "ES" else "Upside distribution by valuation type",
             color_discrete_sequence=CHART_COLORS,
         )
         fig_val.add_vline(x=0, line_dash="dash", line_color="#7A6856", opacity=0.5)
@@ -1448,7 +1448,7 @@ with tab_corr:
     if active_ticker not in corr_tickers:
         corr_tickers.insert(0, active_ticker)
 
-    with st.spinner("Descargando precios histÃ³ricos..." if lang == "ES" else "Downloading historical prices..."):
+    with st.spinner("Descargando precios históricos..." if lang == "ES" else "Downloading historical prices..."):
         try:
             df_download = yf.download(corr_tickers, period=period, auto_adjust=True, progress=False)
             if isinstance(df_download.columns, pd.MultiIndex):
@@ -1577,20 +1577,20 @@ with tab_port:
 
             df_pesos = pd.DataFrame({
                 "Activo" if lang == "ES" else "Asset": corr_tickers,
-                "PonderaciÃ³n Ã“ptima (%)" if lang == "ES" else "Optimal Weight (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
-                "FracciÃ³n Decimal" if lang == "ES" else "Decimal Weight": np.round(pesos_optimos, 4)
-            }).sort_values(by="FracciÃ³n Decimal" if lang == "ES" else "Decimal Weight", ascending=False)
+                "Ponderación Óptima (%)" if lang == "ES" else "Optimal Weight (%)": [f"{w*100:.2f}%" for w in pesos_optimos],
+                "Fracción Decimal" if lang == "ES" else "Decimal Weight": np.round(pesos_optimos, 4)
+            }).sort_values(by="Fracción Decimal" if lang == "ES" else "Decimal Weight", ascending=False)
 
             render_champagne_table(df_pesos)
 
-            weight_col = "FracciÃ³n Decimal" if lang == "ES" else "Decimal Weight"
+            weight_col = "Fracción Decimal" if lang == "ES" else "Decimal Weight"
             name_col = "Activo" if lang == "ES" else "Asset"
 
             fig_pie = px.pie(
                 df_pesos[df_pesos[weight_col] > 0.001],
                 values=weight_col,
                 names=name_col,
-                title=("DistribuciÃ³n recomendada de capital" if lang == "ES" else "Recommended capital allocation") + f" ({objetivo})",
+                title=("Distribución recomendada de capital" if lang == "ES" else "Recommended capital allocation") + f" ({objetivo})",
                 color_discrete_sequence=CHART_COLORS
             )
             fig_pie.update_layout(
@@ -1600,7 +1600,7 @@ with tab_port:
             )
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.error("El algoritmo no convergiÃ³ / The optimizer did not converge.")
+            st.error("El algoritmo no convergió / The optimizer did not converge.")
     else:
         st.warning(T["portfolio_warn"])
 
@@ -1638,7 +1638,7 @@ with tab_fin:
             st.info(T["no_data"])
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- TAB INFORMES (SEC / CNMV) â€” con descarga PDF --------
+# -------- TAB INFORMES (SEC / CNMV) — con descarga PDF --------
 with tab_filings:
     st.markdown('<div class="fade-container">', unsafe_allow_html=True)
     st.subheader("Informes Regulatorios")
@@ -1654,7 +1654,7 @@ with tab_filings:
             if not df_sec.empty:
                 df_all.append(df_sec)
 
-    # CNMV: tickers espaÃ±oles (.MC)
+    # CNMV: tickers españoles (.MC)
     if active_ticker.endswith(".MC"):
         df_cnmv = get_cnmv_filings_for_spanish_issuer(ticker_base)
         if df_cnmv is not None and not df_cnmv.empty:
@@ -1663,7 +1663,6 @@ with tab_filings:
     if df_all:
         df_filings = pd.concat(df_all, ignore_index=True)
 
-        # Ordenar por fecha descendente
         if "Fecha" in df_filings.columns:
             try:
                 df_filings["Fecha"] = pd.to_datetime(df_filings["Fecha"], errors="coerce")
@@ -1672,13 +1671,11 @@ with tab_filings:
             except Exception:
                 pass
 
-        # Tabla resumen
         render_champagne_table(df_filings)
 
         st.markdown("---")
         st.markdown("### Visor y Descarga de Documentos")
 
-        # Selector de informe
         opciones = df_filings.apply(
             lambda r: f"{r['Fecha']} | {r['Regulador']} | {r['Formulario']}", axis=1
         ).tolist()
@@ -1690,13 +1687,8 @@ with tab_filings:
         fila = df_filings.iloc[idx]
         url_doc = fila["URL"]
 
-        # Enlace externo siempre visible como fallback
-        st.markdown(f"ðŸ”— **[Abrir documento original en el navegador]({url_doc})**")
+        st.markdown(f"🔗 **[Abrir documento original en el navegador]({url_doc})**")
 
-        # â”€â”€ Clave de estado para persistir el PDF entre reruns de Streamlit â”€â”€
-        # Streamlit re-ejecuta el script completo en cada interacciÃ³n, asÃ­ que
-        # guardamos los bytes en session_state para no regenerar el PDF cada
-        # vez que el usuario mueve otro widget.
         pdf_state_key = f"pdf_bytes_{idx}"
         pdf_name_key = f"pdf_name_{idx}"
 
@@ -1704,21 +1696,20 @@ with tab_filings:
 
         with col_btn1:
             generar = st.button(
-                "âš™ï¸ Generar PDF",
+                "⚙️ Generar PDF",
                 key=f"gen_pdf_{idx}",
                 type="primary",
                 help=(
                     "Descarga el documento y lo convierte a PDF. "
-                    "Puede tardar 15â€“30 s en informes extensos."
+                    "Puede tardar 15–30 s en informes extensos."
                 ),
             )
 
         if generar:
             with st.spinner(
-                "Descargando documento y convirtiendo a PDFâ€¦ puede tardar unos segundos."
+                "Descargando documento y convirtiendo a PDF… puede tardar unos segundos."
             ):
                 try:
-                    # Usamos SEC_HEADERS_WWW para URLs fuera de data.sec.gov
                     headers_dl = (
                         SEC_HEADERS
                         if "data.sec.gov" in url_doc
@@ -1734,21 +1725,16 @@ with tab_filings:
                     )
 
                     if es_pdf_nativo:
-                        # PDF binario nativo (habitual en CNMV)
                         st.session_state[pdf_state_key] = resp.content
                         st.session_state[pdf_name_key] = (
                             f"{ticker_base}_{fila['Formulario']}_{fila['Fecha']}.pdf"
                         )
-                        st.success("âœ… PDF nativo descargado correctamente.")
+                        st.success("✅ PDF nativo descargado correctamente.")
 
                     else:
-                        # HTML de la SEC â†’ convertir con WeasyPrint
-                        # base_url resuelve rutas relativas de CSS/imÃ¡genes
                         base_url = url_doc.rsplit("/", 1)[0] + "/"
                         html_content = resp.text
 
-                        # Inyectamos CSS mÃ­nimo para mejorar legibilidad del PDF.
-                        # Lo insertamos antes de </head>; si no hay <head>, al inicio.
                         style_override = """
                         <style>
                             @page { margin: 1.8cm 2cm; }
@@ -1790,30 +1776,26 @@ with tab_filings:
                             st.session_state[pdf_name_key] = (
                                 f"{ticker_base}_{fila['Formulario']}_{fila['Fecha']}.pdf"
                             )
-                            st.success("âœ… PDF generado correctamente.")
-                        # Si pdf_bytes es None, html_to_pdf_bytes ya emitiÃ³ st.warning
+                            st.success("✅ PDF generado correctamente.")
 
                 except requests.exceptions.Timeout:
                     st.error(
-                        "â±ï¸ Tiempo de espera agotado al descargar el documento. "
-                        "La SEC puede estar lenta. IntÃ©ntalo de nuevo en unos momentos."
+                        "⏱️ Tiempo de espera agotado al descargar el documento. "
+                        "La SEC puede estar lenta. Inténtalo de nuevo en unos momentos."
                     )
                 except requests.exceptions.HTTPError as e:
                     st.error(
-                        f"âŒ Error HTTP al acceder al documento: {e}. "
+                        f"❌ Error HTTP al acceder al documento: {e}. "
                         "Puede que el informe haya sido movido o que la SEC requiera "
                         "otro User-Agent. Usa el enlace directo como alternativa."
                     )
                 except Exception as e:
-                    st.error(f"âŒ Error inesperado: {e}")
+                    st.error(f"❌ Error inesperado: {e}")
 
-        # â”€â”€ BotÃ³n de descarga: solo aparece cuando el PDF estÃ¡ listo â”€â”€
-        # Separamos generaciÃ³n y descarga para evitar el bucle de rerun
-        # que causarÃ­a tener ambas acciones en un Ãºnico botÃ³n.
         if pdf_state_key in st.session_state and st.session_state[pdf_state_key]:
             with col_btn2:
                 st.download_button(
-                    label="â¬‡ï¸ Descargar PDF",
+                    label="⬇️ Descargar PDF",
                     data=st.session_state[pdf_state_key],
                     file_name=st.session_state.get(
                         pdf_name_key,
@@ -1823,7 +1805,6 @@ with tab_filings:
                     key=f"dl_pdf_{idx}",
                 )
 
-            # Vista previa inline del PDF generado
             st.markdown("#### Vista previa del documento")
             b64_pdf = base64.b64encode(
                 st.session_state[pdf_state_key]
@@ -1844,7 +1825,7 @@ with tab_filings:
     else:
         st.info(
             "No se han encontrado informes regulatorios para este ticker. "
-            "Nota: la bÃºsqueda SEC solo funciona con tickers de EE.UU. sin sufijo (ej: AAPL, MSFT)."
+            "Nota: la búsqueda SEC solo funciona con tickers de EE.UU. sin sufijo (ej: AAPL, MSFT)."
         )
 
     st.markdown('</div>', unsafe_allow_html=True)
